@@ -1,0 +1,3 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/dynamixel_sdk/lib/libdynamixel_sdk.so
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/dynamixel_sdk/share/dynamixel_sdk/cmake/dynamixel_sdkExport.cmake
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/dynamixel_sdk/share/dynamixel_sdk/cmake/dynamixel_sdkExport-noconfig.cmake

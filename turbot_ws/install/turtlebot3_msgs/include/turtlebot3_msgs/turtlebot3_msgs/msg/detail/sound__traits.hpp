@@ -1,0 +1,1 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs/rosidl_generator_cpp/turtlebot3_msgs/msg/detail/sound__traits.hpp

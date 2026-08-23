@@ -1,0 +1,1 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs/rosidl_generator_py/turtlebot3_msgs/msg/_sensor_state_s.c

@@ -1,0 +1,1 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_bringup/ament_cmake_core/turtlebot3_bringupConfig-version.cmake

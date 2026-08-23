@@ -1,0 +1,14 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/uninstall.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/dynamixel_sdk_uninstall.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/dynamixel_sdk.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/ament_cmake_python_symlink_dynamixel_sdk.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/ament_cmake_python_build_dynamixel_sdk_egg.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/ament_cmake_python_symlink_dynamixel_easy_sdk.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/ament_cmake_python_build_dynamixel_easy_sdk_egg.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/test.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/edit_cache.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/rebuild_cache.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/list_install_components.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/install.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/install/local.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk/CMakeFiles/install/strip.dir

@@ -1,0 +1,149 @@
+{
+	"abstract" : true,
+	"artifacts" : 
+	[
+		{
+			"path" : "/usr/lib/x86_64-linux-gnu/libccd.so.2.0"
+		}
+	],
+	"backtrace" : 17,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_library",
+			"include",
+			"find_package",
+			"dart_traverse_components",
+			"dart_package_init"
+		],
+		"files" : 
+		[
+			"/usr/lib/x86_64-linux-gnu/ccd/ccd-targets.cmake",
+			"/usr/lib/x86_64-linux-gnu/ccd/ccd-config.cmake",
+			"/usr/share/dart/cmake/Findccd.cmake",
+			"/usr/share/dart/cmake/DARTFindccd.cmake",
+			"/usr/share/dart/cmake/dart_dartComponent.cmake",
+			"/usr/share/dart/cmake/DARTConfig.cmake",
+			"/usr/lib/x86_64-linux-gnu/cmake/gazebo/gazebo-config.cmake",
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 7
+			},
+			{
+				"command" : 2,
+				"file" : 7,
+				"line" : 23,
+				"parent" : 0
+			},
+			{
+				"file" : 6,
+				"parent" : 1
+			},
+			{
+				"command" : 2,
+				"file" : 6,
+				"line" : 166,
+				"parent" : 2
+			},
+			{
+				"file" : 5,
+				"parent" : 3
+			},
+			{
+				"command" : 4,
+				"file" : 5,
+				"line" : 181,
+				"parent" : 4
+			},
+			{
+				"command" : 3,
+				"file" : 5,
+				"line" : 133,
+				"parent" : 5
+			},
+			{
+				"command" : 1,
+				"file" : 5,
+				"line" : 73,
+				"parent" : 6
+			},
+			{
+				"file" : 4,
+				"parent" : 7
+			},
+			{
+				"command" : 1,
+				"file" : 4,
+				"line" : 6,
+				"parent" : 8
+			},
+			{
+				"file" : 3,
+				"parent" : 9
+			},
+			{
+				"command" : 2,
+				"file" : 3,
+				"line" : 9,
+				"parent" : 10
+			},
+			{
+				"file" : 2,
+				"parent" : 11
+			},
+			{
+				"command" : 2,
+				"file" : 2,
+				"line" : 20,
+				"parent" : 12
+			},
+			{
+				"file" : 1,
+				"parent" : 13
+			},
+			{
+				"command" : 1,
+				"file" : 1,
+				"line" : 38,
+				"parent" : 14
+			},
+			{
+				"file" : 0,
+				"parent" : 15
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 16
+			}
+		]
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 10
+	},
+	"id" : "ccd::@6890427a1f51a3e7e1df",
+	"imported" : true,
+	"interfaceLinkLibraries" : 
+	[
+		{
+			"fragment" : "/usr/lib/x86_64-linux-gnu/libm.so"
+		}
+	],
+	"local" : true,
+	"name" : "ccd",
+	"nameOnDisk" : "libccd.so.2.0",
+	"paths" : 
+	{
+		"build" : ".",
+		"source" : "."
+	},
+	"sources" : [],
+	"type" : "SHARED_LIBRARY"
+}

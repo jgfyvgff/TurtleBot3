@@ -1,0 +1,17 @@
+[0.650s] Invoking command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_teleop': PYTHONPATH=/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_teleop/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_teleop/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_teleop/build --no-deps symlink_data
+[0.799s] running develop
+[0.880s] running egg_info
+[0.881s] writing turtlebot3_teleop.egg-info/PKG-INFO
+[0.881s] writing dependency_links to turtlebot3_teleop.egg-info/dependency_links.txt
+[0.881s] writing entry points to turtlebot3_teleop.egg-info/entry_points.txt
+[0.881s] writing requirements to turtlebot3_teleop.egg-info/requires.txt
+[0.881s] writing top-level names to turtlebot3_teleop.egg-info/top_level.txt
+[0.882s] reading manifest file 'turtlebot3_teleop.egg-info/SOURCES.txt'
+[0.883s] writing manifest file 'turtlebot3_teleop.egg-info/SOURCES.txt'
+[0.884s] running build_ext
+[0.884s] Creating /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_teleop/lib/python3.10/site-packages/turtlebot3-teleop.egg-link (link to .)
+[0.884s] Installing teleop_keyboard script to /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_teleop/lib/turtlebot3_teleop
+[0.884s] 
+[0.884s] Installed /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_teleop
+[0.884s] running symlink_data
+[0.909s] Invoked command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_teleop' returned '0': PYTHONPATH=/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_teleop/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_teleop/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_teleop/build --no-deps symlink_data

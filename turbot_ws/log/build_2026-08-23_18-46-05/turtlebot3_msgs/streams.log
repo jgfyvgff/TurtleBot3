@@ -1,0 +1,86 @@
+[0.024s] Invoking command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/turtlebot3_msgs -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_msgs
+[0.035s] [0mCMake Deprecation Warning at CMakeLists.txt:4 (cmake_minimum_required):
+[0.035s]   Compatibility with CMake < 3.10 will be removed from a future version of
+[0.035s]   CMake.
+[0.035s] 
+[0.036s]   Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+[0.036s]   to tell CMake that the project requires at least <min> but has been updated
+[0.036s]   to work with policies introduced by <max> or earlier.
+[0.036s] 
+[0.036s] [0m
+[0.064s] -- The C compiler identification is GNU 11.4.0
+[0.117s] -- The CXX compiler identification is GNU 11.4.0
+[0.124s] -- Detecting C compiler ABI info
+[0.174s] -- Detecting C compiler ABI info - done
+[0.185s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.185s] -- Detecting C compile features
+[0.186s] -- Detecting C compile features - done
+[0.194s] -- Detecting CXX compiler ABI info
+[0.254s] -- Detecting CXX compiler ABI info - done
+[0.265s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.265s] -- Detecting CXX compile features
+[0.265s] -- Detecting CXX compile features - done
+[0.272s] -- Found action_msgs: 1.2.3 (/opt/ros/humble/share/action_msgs/cmake)
+[0.367s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter
+[0.417s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.480s] -- Found rosidl_generator_c: 3.1.9 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[0.483s] -- Found rosidl_adapter: 3.1.9 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[0.490s] -- Found rosidl_generator_cpp: 3.1.9 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[0.500s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.514s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.565s] -- Found rosidl_default_generators: 1.2.1 (/opt/ros/humble/share/rosidl_default_generators/cmake)
+[0.578s] -- Found std_msgs: 4.9.1 (/opt/ros/humble/share/std_msgs/cmake)
+[0.597s] -- Found geometry_msgs: 4.9.1 (/opt/ros/humble/share/geometry_msgs/cmake)
+[1.158s] -- Found ament_cmake_cppcheck: 0.12.15 (/opt/ros/humble/share/ament_cmake_cppcheck/cmake)
+[1.160s] -- Found ament_cmake_cpplint: 0.12.15 (/opt/ros/humble/share/ament_cmake_cpplint/cmake)
+[1.162s] -- Found ament_cmake_uncrustify: 0.12.15 (/opt/ros/humble/share/ament_cmake_uncrustify/cmake)
+[1.164s] -- Found ament_cmake_ros: 0.10.0 (/opt/ros/humble/share/ament_cmake_ros/cmake)
+[1.697s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[1.909s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[1.911s] [33mCMake Warning (dev) at /opt/ros/humble/share/rosidl_generator_py/cmake/rosidl_generator_py_generate_interfaces.cmake:20 (find_package):
+[1.911s]   Policy CMP0148 is not set: The FindPythonInterp and FindPythonLibs modules
+[1.911s]   are removed.  Run "cmake --help-policy CMP0148" for policy details.  Use
+[1.911s]   the cmake_policy command to set the policy and suppress this warning.
+[1.911s] 
+[1.911s] Call Stack (most recent call first):
+[1.911s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_execute_extensions.cmake:48 (include)
+[1.911s]   /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_generate_interfaces.cmake:286 (ament_execute_extensions)
+[1.911s]   CMakeLists.txt:47 (rosidl_generate_interfaces)
+[1.911s] This warning is for project developers.  Use -Wno-dev to suppress it.
+[1.911s] [0m
+[1.925s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.10.12", minimum required is "3.6")
+[1.926s] -- Found python_cmake_module: 0.10.0 (/opt/ros/humble/share/python_cmake_module/cmake)
+[1.926s] [33mCMake Warning (dev) at /opt/ros/humble/share/python_cmake_module/cmake/Modules/FindPythonExtra.cmake:52 (find_package):
+[1.926s]   Policy CMP0148 is not set: The FindPythonInterp and FindPythonLibs modules
+[1.926s]   are removed.  Run "cmake --help-policy CMP0148" for policy details.  Use
+[1.926s]   the cmake_policy command to set the policy and suppress this warning.
+[1.927s] 
+[1.927s] Call Stack (most recent call first):
+[1.927s]   /opt/ros/humble/share/rosidl_generator_py/cmake/rosidl_generator_py_generate_interfaces.cmake:23 (find_package)
+[1.927s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_execute_extensions.cmake:48 (include)
+[1.927s]   /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_generate_interfaces.cmake:286 (ament_execute_extensions)
+[1.927s]   CMakeLists.txt:47 (rosidl_generate_interfaces)
+[1.927s] This warning is for project developers.  Use -Wno-dev to suppress it.
+[1.927s] [0m
+[1.941s] [33mCMake Warning (dev) at /opt/ros/humble/share/python_cmake_module/cmake/Modules/FindPythonExtra.cmake:140 (find_package):
+[1.941s]   Policy CMP0148 is not set: The FindPythonInterp and FindPythonLibs modules
+[1.941s]   are removed.  Run "cmake --help-policy CMP0148" for policy details.  Use
+[1.941s]   the cmake_policy command to set the policy and suppress this warning.
+[1.941s] 
+[1.941s] Call Stack (most recent call first):
+[1.941s]   /opt/ros/humble/share/rosidl_generator_py/cmake/rosidl_generator_py_generate_interfaces.cmake:23 (find_package)
+[1.941s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_execute_extensions.cmake:48 (include)
+[1.941s]   /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_generate_interfaces.cmake:286 (ament_execute_extensions)
+[1.941s]   CMakeLists.txt:47 (rosidl_generate_interfaces)
+[1.941s] This warning is for project developers.  Use -Wno-dev to suppress it.
+[1.941s] [0m
+[1.947s] -- Found PythonLibs: /usr/lib/x86_64-linux-gnu/libpython3.10.so (found suitable version "3.10.12", minimum required is "3.5")
+[1.947s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[1.947s] -- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.10
+[1.947s] -- Using PYTHON_LIBRARIES: /usr/lib/x86_64-linux-gnu/libpython3.10.so
+[1.961s] -- Found PythonExtra: .so
+[2.004s] -- Found ament_cmake_flake8: 0.12.15 (/opt/ros/humble/share/ament_cmake_flake8/cmake)
+[2.006s] -- Found ament_cmake_pep257: 0.12.15 (/opt/ros/humble/share/ament_cmake_pep257/cmake)
+[2.121s] -- Configuring done (2.1s)
+[2.162s] -- Generating done (0.0s)
+[2.176s] -- Build files have been written to: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs

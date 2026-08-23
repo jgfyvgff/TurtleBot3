@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_description/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

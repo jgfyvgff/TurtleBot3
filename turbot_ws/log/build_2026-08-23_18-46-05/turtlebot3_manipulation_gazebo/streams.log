@@ -1,0 +1,136 @@
+[0.017s] Invoking command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/turtlebot3_simulations/turtlebot3_manipulation_gazebo -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo
+[0.026s] [0mCMake Deprecation Warning at CMakeLists.txt:4 (cmake_minimum_required):
+[0.026s]   Compatibility with CMake < 3.10 will be removed from a future version of
+[0.026s]   CMake.
+[0.026s] 
+[0.026s]   Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+[0.026s]   to tell CMake that the project requires at least <min> but has been updated
+[0.026s]   to work with policies introduced by <max> or earlier.
+[0.026s] 
+[0.026s] [0m
+[0.057s] -- The C compiler identification is GNU 11.4.0
+[0.106s] -- The CXX compiler identification is GNU 11.4.0
+[0.111s] -- Detecting C compiler ABI info
+[0.156s] -- Detecting C compiler ABI info - done
+[0.165s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.166s] -- Detecting C compile features
+[0.166s] -- Detecting C compile features - done
+[0.174s] -- Detecting CXX compiler ABI info
+[0.231s] -- Detecting CXX compiler ABI info - done
+[0.241s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.241s] -- Detecting CXX compile features
+[0.242s] -- Detecting CXX compile features - done
+[0.249s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.338s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter
+[0.381s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.454s] -- Configuring done (0.4s)
+[0.458s] -- Generating done (0.0s)
+[0.459s] -- Build files have been written to: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo
+[0.464s] Invoked command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/turtlebot3_simulations/turtlebot3_manipulation_gazebo -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo
+[0.466s] Invoking command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo -- -j16 -l16
+[0.483s] Invoked command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo -- -j16 -l16
+[0.487s] Invoking command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo
+[0.490s] -- Install configuration: ""
+[0.490s] -- Execute custom install script
+[0.490s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/config/gazebo_controller_manager.yaml
+[0.494s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/config/hardware_controller_manager.yaml
+[0.496s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/gazebo/materials.xacro
+[0.500s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/gazebo/open_manipulator_x.gazebo.xacro
+[0.502s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/gazebo/turtlebot3_waffle_pi.gazebo.xacro
+[0.506s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/launch/base.launch.py
+[0.509s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/launch/fake.launch.py
+[0.511s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/launch/gazebo.launch.py
+[0.515s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/launch/turtlebot3_home_service_challenge.launch.py
+[0.518s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/ros2_control/turtlebot3_manipulation_system.ros2_control.xacro
+[0.521s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/rviz/turtlebot3_manipulation.rviz
+[0.524s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/urdf/open_manipulator_x.urdf.xacro
+[0.527s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/urdf/turtlebot3_manipulation.urdf.xacro
+[0.532s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/urdf/turtlebot3_waffle_pi.urdf.xacro
+[0.534s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/worlds/turtlebot3_home_service_challenge.world
+[0.538s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker0/materials/textures/Marker0.png
+[0.541s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker0/meshes/Marker0.dae
+[0.544s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker0/model-1_4.sdf
+[0.547s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker0/model-1_5.sdf
+[0.550s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker0/model.config
+[0.553s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker0/model.sdf
+[0.556s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker1/materials/textures/Marker1.png
+[0.559s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker1/meshes/Marker1.dae
+[0.562s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker1/model-1_4.sdf
+[0.565s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker1/model-1_5.sdf
+[0.568s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker1/model.config
+[0.571s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker1/model.sdf
+[0.574s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker2/materials/textures/Marker2.png
+[0.577s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker2/meshes/Marker2.dae
+[0.580s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker2/model-1_4.sdf
+[0.583s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker2/model-1_5.sdf
+[0.587s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker2/model.config
+[0.589s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker2/model.sdf
+[0.593s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker3/materials/textures/Marker3.png
+[0.595s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker3/meshes/Marker3.dae
+[0.598s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker3/model-1_4.sdf
+[0.601s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker3/model-1_5.sdf
+[0.604s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker3/model.config
+[0.608s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker3/model.sdf
+[0.611s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker4/materials/textures/Marker4.png
+[0.615s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker4/meshes/Marker4.dae
+[0.623s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker4/model-1_4.sdf
+[0.631s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker4/model-1_5.sdf
+[0.639s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker4/model.config
+[0.642s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker4/model.sdf
+[0.647s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker5/materials/textures/Marker5.png
+[0.652s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker5/meshes/Marker5.dae
+[0.656s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker5/model-1_4.sdf
+[0.660s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker5/model-1_5.sdf
+[0.671s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker5/model.config
+[0.671s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker5/model.sdf
+[0.678s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker6/materials/textures/Marker6.png
+[0.680s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker6/meshes/Marker6.dae
+[0.699s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker6/model-1_4.sdf
+[0.699s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker6/model-1_5.sdf
+[0.699s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker6/model.config
+[0.702s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker6/model.sdf
+[0.706s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker7/materials/textures/Marker7.png
+[0.712s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker7/meshes/Marker7.dae
+[0.721s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker7/model-1_4.sdf
+[0.733s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker7/model-1_5.sdf
+[0.741s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker7/model.config
+[0.752s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker7/model.sdf
+[0.762s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker8/materials/textures/Marker8.png
+[0.773s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker8/meshes/Marker8.dae
+[0.784s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker8/model-1_4.sdf
+[0.793s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker8/model-1_5.sdf
+[0.804s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker8/model.config
+[0.816s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker8/model.sdf
+[0.824s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker9/materials/textures/Marker9.png
+[0.830s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker9/meshes/Marker9.dae
+[0.838s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker9/model-1_4.sdf
+[0.847s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker9/model-1_5.sdf
+[0.855s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker9/model.config
+[0.871s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/models/turtlebot3_home_service_challenge/marker9/model.sdf
+[0.878s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/open_manipulator_x/gripper_left_palm.stl
+[0.890s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/open_manipulator_x/gripper_right_palm.stl
+[0.898s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/open_manipulator_x/link1.stl
+[0.900s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/open_manipulator_x/link2.stl
+[0.907s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/open_manipulator_x/link3.stl
+[0.914s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/open_manipulator_x/link4.stl
+[0.919s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/open_manipulator_x/link5.stl
+[0.924s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/turtlebot3_waffle_pi/base.stl
+[0.929s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/turtlebot3_waffle_pi/ladar.stl
+[0.934s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/turtlebot3_waffle_pi/left_tire.stl
+[0.939s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/meshes/turtlebot3_waffle_pi/right_tire.stl
+[0.946s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/ament_index/resource_index/package_run_dependencies/turtlebot3_manipulation_gazebo
+[0.951s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/ament_index/resource_index/parent_prefix_path/turtlebot3_manipulation_gazebo
+[0.956s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/environment/ament_prefix_path.sh
+[0.960s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/environment/ament_prefix_path.dsv
+[0.964s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/environment/path.sh
+[0.969s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/environment/path.dsv
+[0.973s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/local_setup.bash
+[0.978s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/local_setup.sh
+[0.982s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/local_setup.zsh
+[0.986s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/local_setup.dsv
+[0.991s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/package.dsv
+[0.996s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/ament_index/resource_index/packages/turtlebot3_manipulation_gazebo
+[1.001s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/cmake/turtlebot3_manipulation_gazeboConfig.cmake
+[1.006s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/cmake/turtlebot3_manipulation_gazeboConfig-version.cmake
+[1.011s] -- Symlinking: /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_manipulation_gazebo/share/turtlebot3_manipulation_gazebo/package.xml
+[1.018s] Invoked command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo

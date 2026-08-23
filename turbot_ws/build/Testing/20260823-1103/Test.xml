@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="(empty)"
+	BuildStamp="20260823-1103-Experimental"
+	Name="ljq"
+	Generator="ctest-4.3.2"
+	CompilerName="/usr/bin/g++"
+	CompilerVersion="11.4.0"
+	OSName="Linux"
+	Hostname="ljq"
+	OSRelease="6.8.0-124-generic"
+	OSVersion="#124~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Tue May 26 21:05:19 UTC "
+	OSPlatform="x86_64"
+	Is64Bits="1"
+	VendorString="AuthenticAMD"
+	VendorID="Advanced Micro Devices"
+	FamilyID="25"
+	ModelID="116"
+	ModelName="AMD Ryzen 7 7840H with Radeon 780M Graphics"
+	ProcessorCacheSize="1024"
+	NumberOfLogicalCPU="16"
+	NumberOfPhysicalCPU="8"
+	TotalVirtualMemory="2047"
+	TotalPhysicalMemory="15169"
+	LogicalProcessorsPerPhysical="2"
+	ProcessorClockFrequency="4687.099121"
+	>
+	<Testing>
+		<StartDateTime>Aug 23 19:03 CST</StartDateTime>
+		<StartTestTime>1787483035</StartTestTime>
+		<TestList/>
+		<EndDateTime>Aug 23 19:03 CST</EndDateTime>
+		<EndTestTime>1787483035</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>

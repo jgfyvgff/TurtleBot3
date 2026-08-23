@@ -1,0 +1,1 @@
+Invoking command in '/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/turtlebot3_msgs -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/turtlebot3_msgs

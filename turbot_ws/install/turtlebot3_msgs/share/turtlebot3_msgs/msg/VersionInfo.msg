@@ -1,0 +1,1 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/turtlebot3_msgs/msg/VersionInfo.msg

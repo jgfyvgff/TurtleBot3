@@ -1,0 +1,1 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/DynamixelSDK/ros/dynamixel_sdk_examples/src/read_write_node.py

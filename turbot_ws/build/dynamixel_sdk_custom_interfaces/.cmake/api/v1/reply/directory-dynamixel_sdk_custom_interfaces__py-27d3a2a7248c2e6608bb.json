@@ -1,0 +1,19 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"codemodelVersion" : 
+	{
+		"major" : 2,
+		"minor" : 10
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "dynamixel_sdk_custom_interfaces__py",
+		"source" : "/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk_custom_interfaces/dynamixel_sdk_custom_interfaces__py"
+	}
+}

@@ -1,0 +1,1 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs/rosidl_generator_c/turtlebot3_msgs/msg/version_info.h

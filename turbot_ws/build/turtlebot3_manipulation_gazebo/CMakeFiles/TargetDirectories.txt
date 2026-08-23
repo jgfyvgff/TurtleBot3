@@ -1,0 +1,9 @@
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/uninstall.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/turtlebot3_manipulation_gazebo_uninstall.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/test.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/edit_cache.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/rebuild_cache.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/list_install_components.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/install.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/install/local.dir
+/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_manipulation_gazebo/CMakeFiles/install/strip.dir
