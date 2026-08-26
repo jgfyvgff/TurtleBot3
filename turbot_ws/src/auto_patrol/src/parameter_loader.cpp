@@ -13,6 +13,7 @@ void declare_patrol_parameters(rclcpp::Node & node)
     node.declare_parameter<std::string>("goal_frame", "map");
     node.declare_parameter<std::string>("amcl_pose_topic", "/amcl_pose");
     node.declare_parameter<std::string>("scan_topic", "/scan");
+    node.declare_parameter<std::string>("odom_topic", "/odom");
     node.declare_parameter<bool>("automatic_global_localization", true);
     node.declare_parameter<double>("localization_timeout_sec", 120.0);
     node.declare_parameter<double>(
@@ -34,8 +35,31 @@ void declare_patrol_parameters(rclcpp::Node & node)
         "localization_exploration_max_duration_sec",
         40.0);
     node.declare_parameter<double>(
+        "localization_exploration_linear_speed",
+        0.06);
+    node.declare_parameter<double>(
+        "localization_exploration_translation_distance",
+        0.25);
+    node.declare_parameter<double>(
+        "localization_exploration_translation_timeout_sec",
+        8.0);
+    node.declare_parameter<double>(
+        "localization_exploration_min_front_clearance",
+        0.45);
+    node.declare_parameter<double>(
+        "localization_exploration_front_sector_half_angle",
+        0.35);
+    node.declare_parameter<double>(
         "localization_settle_duration_sec",
         1.0);
+    node.declare_parameter<double>("costmap_clear_timeout_sec", 5.0);
+    node.declare_parameter<double>("costmap_clear_settle_duration_sec", 2.0);
+    node.declare_parameter<std::string>(
+        "global_costmap_clear_service",
+        "/global_costmap/clear_entirely_global_costmap");
+    node.declare_parameter<std::string>(
+        "local_costmap_clear_service",
+        "/local_costmap/clear_entirely_local_costmap");
     node.declare_parameter<bool>(
         "use_manual_initial_pose_fallback",
         false);
@@ -65,6 +89,7 @@ PatrolConfig load_patrol_config(const rclcpp::Node & node)
     config.goal_frame = node.get_parameter("goal_frame").as_string();
     config.amcl_pose_topic = node.get_parameter("amcl_pose_topic").as_string();
     config.scan_topic = node.get_parameter("scan_topic").as_string();
+    config.odom_topic = node.get_parameter("odom_topic").as_string();
     config.automatic_global_localization =
         node.get_parameter("automatic_global_localization").as_bool();
     config.localization_timeout_sec =
@@ -82,8 +107,30 @@ PatrolConfig load_patrol_config(const rclcpp::Node & node)
     config.localization_exploration_max_duration_sec =
         node.get_parameter(
         "localization_exploration_max_duration_sec").as_double();
+    config.localization_exploration_linear_speed =
+        node.get_parameter("localization_exploration_linear_speed").as_double();
+    config.localization_exploration_translation_distance =
+        node.get_parameter(
+        "localization_exploration_translation_distance").as_double();
+    config.localization_exploration_translation_timeout_sec =
+        node.get_parameter(
+        "localization_exploration_translation_timeout_sec").as_double();
+    config.localization_exploration_min_front_clearance =
+        node.get_parameter(
+        "localization_exploration_min_front_clearance").as_double();
+    config.localization_exploration_front_sector_half_angle =
+        node.get_parameter(
+        "localization_exploration_front_sector_half_angle").as_double();
     config.localization_settle_duration_sec =
         node.get_parameter("localization_settle_duration_sec").as_double();
+    config.costmap_clear_timeout_sec =
+        node.get_parameter("costmap_clear_timeout_sec").as_double();
+    config.costmap_clear_settle_duration_sec =
+        node.get_parameter("costmap_clear_settle_duration_sec").as_double();
+    config.global_costmap_clear_service =
+        node.get_parameter("global_costmap_clear_service").as_string();
+    config.local_costmap_clear_service =
+        node.get_parameter("local_costmap_clear_service").as_string();
     config.use_manual_initial_pose_fallback =
         node.get_parameter("use_manual_initial_pose_fallback").as_bool();
     config.max_retries = static_cast<int>(node.get_parameter("max_retries").as_int());
@@ -134,14 +181,23 @@ void validate_patrol_config(const PatrolConfig & config)
     if (config.scan_topic.empty()) {
         throw std::runtime_error("scan_topic must not be empty.");
     }
-    if (config.localization_timeout_sec <= 0.0) {
+    if (config.odom_topic.empty()) {
+        throw std::runtime_error("odom_topic must not be empty.");
+    }
+    if (!std::isfinite(config.localization_timeout_sec) ||
+        config.localization_timeout_sec <= 0.0)
+    {
         throw std::runtime_error("localization_timeout_sec must be positive.");
     }
-    if (config.localization_position_variance_threshold <= 0.0) {
+    if (!std::isfinite(config.localization_position_variance_threshold) ||
+        config.localization_position_variance_threshold <= 0.0)
+    {
         throw std::runtime_error(
             "localization_position_variance_threshold must be positive.");
     }
-    if (config.localization_yaw_variance_threshold <= 0.0) {
+    if (!std::isfinite(config.localization_yaw_variance_threshold) ||
+        config.localization_yaw_variance_threshold <= 0.0)
+    {
         throw std::runtime_error(
             "localization_yaw_variance_threshold must be positive.");
     }
@@ -163,11 +219,60 @@ void validate_patrol_config(const PatrolConfig & config)
         throw std::runtime_error(
             "localization_exploration_max_duration_sec must be finite and positive.");
     }
+    if (!std::isfinite(config.localization_exploration_linear_speed) ||
+        config.localization_exploration_linear_speed <= 0.0)
+    {
+        throw std::runtime_error(
+            "localization_exploration_linear_speed must be finite and positive.");
+    }
+    if (!std::isfinite(config.localization_exploration_translation_distance) ||
+        config.localization_exploration_translation_distance <= 0.0)
+    {
+        throw std::runtime_error(
+            "localization_exploration_translation_distance must be finite and positive.");
+    }
+    if (!std::isfinite(config.localization_exploration_translation_timeout_sec) ||
+        config.localization_exploration_translation_timeout_sec <= 0.0)
+    {
+        throw std::runtime_error(
+            "localization_exploration_translation_timeout_sec must be finite and positive.");
+    }
+    if (!std::isfinite(config.localization_exploration_min_front_clearance) ||
+        config.localization_exploration_min_front_clearance <= 0.0)
+    {
+        throw std::runtime_error(
+            "localization_exploration_min_front_clearance must be finite and positive.");
+    }
+    constexpr double pi = 3.14159265358979323846;
+    if (!std::isfinite(config.localization_exploration_front_sector_half_angle) ||
+        config.localization_exploration_front_sector_half_angle <= 0.0 ||
+        config.localization_exploration_front_sector_half_angle > pi)
+    {
+        throw std::runtime_error(
+            "localization_exploration_front_sector_half_angle must be in (0, pi].");
+    }
     if (!std::isfinite(config.localization_settle_duration_sec) ||
         config.localization_settle_duration_sec <= 0.0)
     {
         throw std::runtime_error(
             "localization_settle_duration_sec must be finite and positive.");
+    }
+    if (!std::isfinite(config.costmap_clear_timeout_sec) ||
+        config.costmap_clear_timeout_sec <= 0.0)
+    {
+        throw std::runtime_error(
+            "costmap_clear_timeout_sec must be finite and positive.");
+    }
+    if (!std::isfinite(config.costmap_clear_settle_duration_sec) ||
+        config.costmap_clear_settle_duration_sec < 0.0)
+    {
+        throw std::runtime_error(
+            "costmap_clear_settle_duration_sec must be finite and non-negative.");
+    }
+    if (config.global_costmap_clear_service.empty() ||
+        config.local_costmap_clear_service.empty())
+    {
+        throw std::runtime_error("costmap clear service names must not be empty.");
     }
     if (config.automatic_global_localization ==
         config.use_manual_initial_pose_fallback)

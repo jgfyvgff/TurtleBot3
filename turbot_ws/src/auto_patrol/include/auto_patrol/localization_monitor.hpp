@@ -31,8 +31,17 @@ public:
     // 全局重定位会使旧粒子分布失效，因此必须丢弃服务调用前的稳定样本。
     void reset_for_relocalization();
 
+    // 平移验证开始时只清除 AMCL 证据，保留最近 LaserScan 供前方安全检查使用。
+    void begin_translation_validation();
+
     // 主动探索时允许机器人正常旋转，只要求连续低协方差样本，不比较相邻 yaw。
     bool relocalization_is_ready(const rclcpp::Time & now) const;
+
+    // 仅在当前 LaserScan 的前方扇区存在有效且足够远的量测时允许短距离平移。
+    bool front_clearance_is_safe(
+        const rclcpp::Time & now,
+        double minimum_clearance,
+        double sector_half_angle) const;
 
     bool is_ready(const rclcpp::Time & now) const;
 
@@ -63,6 +72,8 @@ private:
     bool amcl_pose_received_{false};
     builtin_interfaces::msg::Time last_scan_stamp_;
     builtin_interfaces::msg::Time last_amcl_pose_stamp_;
+    // 拷贝最近一帧扫描供安全判断使用；其访问始终受 mutex_ 保护。
+    std::optional<sensor_msgs::msg::LaserScan> latest_scan_;
     std::optional<PoseSample> previous_amcl_pose_;
     int amcl_stable_count_{0};
     int confident_amcl_sample_count_{0};

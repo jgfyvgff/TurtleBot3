@@ -35,6 +35,8 @@ amcl:
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0
+    # 自动定位以 0.40 rad/s 旋转时，每约 0.1 rad 更新一次 AMCL，
+    # 让粒子滤波器更快吸收不同朝向的 LaserScan；该值已在当前成功基线中使用。
     update_min_a: 0.1
     update_min_d: 0.25
     z_hit: 0.5
@@ -121,7 +123,7 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
+      xy_goal_tolerance: 0.10
       yaw_goal_tolerance: 0.25
 
     # DWB 参数。若降低速度或加速度，需同步修改文件末尾的 velocity_smoother。
@@ -151,7 +153,7 @@ controller_server:
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.2
-      xy_goal_tolerance: 0.05
+      xy_goal_tolerance: 0.10
       trans_stopped_velocity: 0.25
       short_circuit_trajectory_evaluation: True
       stateful: True
@@ -187,7 +189,7 @@ local_costmap:
       plugins: ["obstacle_layer", "voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        inflation_radius: 1.0
+        inflation_radius: 0.7
         cost_scaling_factor: 3.0
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
@@ -281,7 +283,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.55
+        inflation_radius: 0.35
       always_send_full_costmap: True
   global_costmap_client:
     ros__parameters:

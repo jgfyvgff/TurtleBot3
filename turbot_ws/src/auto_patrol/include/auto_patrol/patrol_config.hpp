@@ -21,6 +21,7 @@ struct PatrolConfig
     std::string goal_frame{"map"};
     std::string amcl_pose_topic{"/amcl_pose"};
     std::string scan_topic{"/scan"};
+    std::string odom_topic{"/odom"};
 
     // 默认让 AMCL 在地图上全局初始化粒子，不要求预先知道机器人坐标。
     bool automatic_global_localization{true};
@@ -32,8 +33,22 @@ struct PatrolConfig
     std::string localization_cmd_vel_topic{"/cmd_vel_nav"};
     double localization_exploration_angular_speed{0.20};
     double localization_exploration_max_duration_sec{40.0};
+    // 主动验证使用低速短距离平移；单位依次为 m/s、m、s、m 和 rad。
+    double localization_exploration_linear_speed{0.06};
+    double localization_exploration_translation_distance{0.25};
+    double localization_exploration_translation_timeout_sec{8.0};
+    double localization_exploration_min_front_clearance{0.45};
+    double localization_exploration_front_sector_half_angle{0.35};
     // 探索停止后留给 AMCL 处理最后一帧扫描的确认时间，单位为 s。
     double localization_settle_duration_sec{1.0};
+
+    // 清理服务完成后等待 costmap 重新融合当前扫描，避免刚清空的瞬间发送目标。
+    double costmap_clear_timeout_sec{5.0};
+    double costmap_clear_settle_duration_sec{2.0};
+    std::string global_costmap_clear_service{
+        "/global_costmap/clear_entirely_global_costmap"};
+    std::string local_costmap_clear_service{
+        "/local_costmap/clear_entirely_local_costmap"};
 
     // 仅用于调试或已知出生点的兼容模式，不是默认定位流程。
     bool use_manual_initial_pose_fallback{false};

@@ -5,6 +5,7 @@ auto_patrol:
     goal_frame: map
     amcl_pose_topic: /amcl_pose
     scan_topic: /scan
+    odom_topic: /odom
 
     # 自动全局重定位：请求 AMCL 后低速旋转获取不同方向的激光观测。
     automatic_global_localization: true
@@ -15,7 +16,19 @@ auto_patrol:
     localization_cmd_vel_topic: /cmd_vel_nav
     localization_exploration_angular_speed: 0.40
     localization_exploration_max_duration_sec: 150.0
+    # 起步净空要求为本值加平移距离；平移中仍持续以本值作为紧急停止下限。
+    localization_exploration_linear_speed: 0.06
+    localization_exploration_translation_distance: 0.25
+    localization_exploration_translation_timeout_sec: 8.0
+    localization_exploration_min_front_clearance: 0.45
+    localization_exploration_front_sector_half_angle: 0.35
     localization_settle_duration_sec: 1.0
+
+    # 两张 costmap 均清空后，等待当前 /scan 重新生成障碍与膨胀层。
+    costmap_clear_timeout_sec: 5.0
+    costmap_clear_settle_duration_sec: 2.0
+    global_costmap_clear_service: /global_costmap/clear_entirely_global_costmap
+    local_costmap_clear_service: /local_costmap/clear_entirely_local_costmap
 
     # 手动初始位姿是调试兼容模式，不能与自动全局重定位同时启用。
     use_manual_initial_pose_fallback: false

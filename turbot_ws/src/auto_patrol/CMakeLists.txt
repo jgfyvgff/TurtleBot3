@@ -10,6 +10,7 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(nav2_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(std_srvs REQUIRED)
@@ -17,8 +18,10 @@ find_package(std_srvs REQUIRED)
 add_library(auto_patrol_core SHARED
   src/parameter_loader.cpp
   src/pose_utils.cpp
+  src/localization_safety.cpp
   src/localization_monitor.cpp
   src/localization_bootstrapper.cpp
+  src/costmap_cleaner.cpp
   src/initial_pose_publisher.cpp
   src/patrol_controller.cpp
 )
@@ -36,6 +39,7 @@ ament_target_dependencies(
   "rclcpp_action"
   "nav2_msgs"
   "geometry_msgs"
+  "nav_msgs"
   "sensor_msgs"
   "builtin_interfaces"
   "std_srvs"
@@ -57,6 +61,7 @@ ament_target_dependencies(
   "rclcpp_action"
   "nav2_msgs"
   "geometry_msgs"
+  "nav_msgs"
   "sensor_msgs"
   "builtin_interfaces"
   "std_srvs"
@@ -111,6 +116,7 @@ if(BUILD_TESTING)
     "rclcpp_action"
     "nav2_msgs"
     "geometry_msgs"
+    "nav_msgs"
     "sensor_msgs"
     "builtin_interfaces"
     "std_srvs"

@@ -1,9 +1,16 @@
 #include <cmath>
+#include <chrono>
 #include <limits>
+#include <memory>
+#include <thread>
 
 #include "gtest/gtest.h"
 
+#include "rclcpp/executors/single_threaded_executor.hpp"
+
+#include "auto_patrol/costmap_cleaner.hpp"
 #include "auto_patrol/localization_monitor.hpp"
+#include "auto_patrol/localization_safety.hpp"
 #include "auto_patrol/patrol_config.hpp"
 #include "auto_patrol/pose_utils.hpp"
 
@@ -26,6 +33,20 @@ auto make_pose_message(int32_t seconds, double x, double y, double yaw)
     return message;
 }
 
+auto make_scan_message(
+    int32_t seconds,
+    const std::vector<float> & ranges)
+{
+    sensor_msgs::msg::LaserScan message;
+    message.header.stamp = make_stamp(seconds);
+    message.angle_min = -0.4F;
+    message.angle_increment = 0.2F;
+    message.range_min = 0.05F;
+    message.range_max = 3.5F;
+    message.ranges = ranges;
+    return message;
+}
+
 auto make_valid_config()
 {
     auto_patrol::PatrolConfig config;
@@ -35,6 +56,38 @@ auto make_valid_config()
         {1.0, 1.0, 1.57},
     };
     return config;
+}
+
+class CostmapCleanerTest : public testing::Test
+{
+protected:
+    static void SetUpTestSuite()
+    {
+        if (!rclcpp::ok()) {
+            rclcpp::init(0, nullptr);
+        }
+    }
+
+    static void TearDownTestSuite()
+    {
+        if (rclcpp::ok()) {
+            rclcpp::shutdown();
+        }
+    }
+};
+
+template<typename Predicate>
+bool spin_until(
+    rclcpp::executors::SingleThreadedExecutor & executor,
+    Predicate predicate,
+    std::chrono::milliseconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (!predicate() && std::chrono::steady_clock::now() < deadline) {
+        executor.spin_some(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return predicate();
 }
 
 }  // namespace
@@ -107,6 +160,68 @@ TEST(PatrolConfigTest, RejectsInvalidLocalizationExploration)
     EXPECT_THROW(
         auto_patrol::validate_patrol_config(config),
         std::runtime_error);
+}
+
+TEST(PatrolConfigTest, RejectsInvalidTranslationAndCostmapParameters)
+{
+    auto config = make_valid_config();
+    config.localization_exploration_linear_speed = 0.0;
+    EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
+
+    config = make_valid_config();
+    config.localization_exploration_translation_distance = -0.1;
+    EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
+
+    config = make_valid_config();
+    config.localization_exploration_front_sector_half_angle = 4.0;
+    EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
+
+    config = make_valid_config();
+    config.costmap_clear_timeout_sec = 0.0;
+    EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
+
+    config = make_valid_config();
+    config.global_costmap_clear_service.clear();
+    EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
+}
+
+TEST(LocalizationSafetyTest, AllowsTranslationWithValidFrontClearance)
+{
+    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.7F, 0.8F, 1.0F});
+    EXPECT_TRUE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
+        scan,
+        0.45,
+        0.35));
+    EXPECT_NEAR(
+        auto_patrol::localization_safety::planar_distance(0.0, 0.0, 0.18, 0.24),
+        0.30,
+        1e-9);
+}
+
+TEST(LocalizationSafetyTest, RequiresClearanceForTheWholeTranslation)
+{
+    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.69F, 0.8F, 1.0F});
+
+    EXPECT_TRUE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
+        scan, 0.45, 0.35));
+    EXPECT_FALSE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
+        scan, 0.70, 0.35));
+}
+
+TEST(LocalizationSafetyTest, RejectsObstacleAndInvalidFrontMeasurements)
+{
+    auto blocked = make_scan_message(9, {1.0F, 0.8F, 0.40F, 0.8F, 1.0F});
+    EXPECT_FALSE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
+        blocked,
+        0.45,
+        0.35));
+
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    auto invalid = make_scan_message(9, {nan, nan, nan, nan, nan});
+    EXPECT_FALSE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
+        invalid,
+        0.45,
+        0.35));
 }
 
 TEST(PoseUtilsTest, NormalizesAnglesAndComputesDifference)
@@ -238,6 +353,20 @@ TEST(LocalizationMonitorTest, ResetRequiresNewLocalizationSamples)
     EXPECT_TRUE(monitor.is_ready(now));
 }
 
+TEST(LocalizationMonitorTest, RequiresCurrentScanForTranslationClearance)
+{
+    auto config = make_valid_config();
+    auto_patrol::LocalizationMonitor monitor(config);
+    const auto now = rclcpp::Time(10, 0, RCL_ROS_TIME);
+    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.7F, 0.8F, 1.0F});
+
+    ASSERT_TRUE(monitor.update_scan(scan, now));
+    EXPECT_TRUE(monitor.front_clearance_is_safe(now, 0.45, 0.35));
+
+    const auto stale_now = rclcpp::Time(12, 0, RCL_ROS_TIME);
+    EXPECT_FALSE(monitor.front_clearance_is_safe(stale_now, 0.45, 0.35));
+}
+
 TEST(LocalizationMonitorTest, RequiresCurrentAmclPose)
 {
     auto config = make_valid_config();
@@ -287,4 +416,102 @@ TEST(LocalizationMonitorTest, RelocalizationAcceptsExpectedYawMotion)
     monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.50), now);
     EXPECT_FALSE(monitor.is_ready(now));
     EXPECT_TRUE(monitor.relocalization_is_ready(now));
+}
+
+TEST(LocalizationMonitorTest, TranslationValidationKeepsScanButRequiresNewAmclEvidence)
+{
+    auto config = make_valid_config();
+    config.stable_amcl_samples = 2;
+    auto_patrol::LocalizationMonitor monitor(config);
+    const auto now = rclcpp::Time(10, 0, RCL_ROS_TIME);
+    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.7F, 0.8F, 1.0F});
+
+    monitor.update_scan(scan, now);
+    monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.0), now);
+    monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.1), now);
+    ASSERT_TRUE(monitor.relocalization_is_ready(now));
+
+    monitor.begin_translation_validation();
+    EXPECT_TRUE(monitor.front_clearance_is_safe(now, 0.45, 0.35));
+    EXPECT_FALSE(monitor.relocalization_is_ready(now));
+
+    monitor.update_amcl_pose(make_pose_message(9, 0.25, 0.0, 0.2), now);
+    monitor.update_amcl_pose(make_pose_message(9, 0.25, 0.0, 0.4), now);
+    EXPECT_TRUE(monitor.relocalization_is_ready(now));
+    EXPECT_TRUE(monitor.confidence_is_sufficient(now));
+}
+
+TEST_F(CostmapCleanerTest, CompletesWhenBothFakeServicesRespond)
+{
+    using ClearEntireCostmap = nav2_msgs::srv::ClearEntireCostmap;
+
+    auto config = make_valid_config();
+    config.global_costmap_clear_service = "/test_global_costmap_clear";
+    config.local_costmap_clear_service = "/test_local_costmap_clear";
+    config.costmap_clear_timeout_sec = 2.0;
+    config.costmap_clear_settle_duration_sec = 0.0;
+    auto node = std::make_shared<rclcpp::Node>("costmap_cleaner_success_test");
+    auto global_service = node->create_service<ClearEntireCostmap>(
+        config.global_costmap_clear_service,
+        [](const std::shared_ptr<ClearEntireCostmap::Request>,
+            std::shared_ptr<ClearEntireCostmap::Response>) {});
+    auto local_service = node->create_service<ClearEntireCostmap>(
+        config.local_costmap_clear_service,
+        [](const std::shared_ptr<ClearEntireCostmap::Request>,
+            std::shared_ptr<ClearEntireCostmap::Response>) {});
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node);
+
+    bool completed = false;
+    bool success = false;
+    {
+        auto_patrol::CostmapCleaner cleaner(
+            *node,
+            config,
+            [&completed, &success](bool result) {
+                completed = true;
+                success = result;
+            });
+        cleaner.start();
+        EXPECT_TRUE(spin_until(
+            executor,
+            [&completed]() { return completed; },
+            std::chrono::milliseconds(1500)));
+        EXPECT_TRUE(success);
+        cleaner.stop();
+    }
+
+    executor.remove_node(node);
+}
+
+TEST_F(CostmapCleanerTest, FailsWhenClearServicesAreUnavailable)
+{
+    auto config = make_valid_config();
+    config.global_costmap_clear_service = "/missing_global_costmap_clear";
+    config.local_costmap_clear_service = "/missing_local_costmap_clear";
+    config.costmap_clear_timeout_sec = 0.15;
+    auto node = std::make_shared<rclcpp::Node>("costmap_cleaner_failure_test");
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node);
+
+    bool completed = false;
+    bool success = true;
+    {
+        auto_patrol::CostmapCleaner cleaner(
+            *node,
+            config,
+            [&completed, &success](bool result) {
+                completed = true;
+                success = result;
+            });
+        cleaner.start();
+        EXPECT_TRUE(spin_until(
+            executor,
+            [&completed]() { return completed; },
+            std::chrono::milliseconds(1000)));
+        EXPECT_FALSE(success);
+        cleaner.stop();
+    }
+
+    executor.remove_node(node);
 }

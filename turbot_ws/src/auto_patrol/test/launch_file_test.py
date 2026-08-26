@@ -28,7 +28,7 @@ def load_launch_module(file_name):
 
 
 class LaunchFileTest(unittest.TestCase):
-    """验证两个 Launch 的职责边界和关键动作."""
+    """验证两个 Launch 的职责边界和组合入口的保留策略."""
 
     def test_auto_patrol_launch_starts_only_patrol_node(self):
         launch_module = load_launch_module("auto_patrol.launch.py")
@@ -47,7 +47,7 @@ class LaunchFileTest(unittest.TestCase):
         self.assertEqual(patrol_nodes[0].node_package, "auto_patrol")
         self.assertEqual(patrol_nodes[0].node_executable, "auto_patrol_node")
 
-    def test_combined_launch_includes_nav2_and_patrol_node(self):
+    def test_combined_launch_includes_world_nav2_and_patrol_node(self):
         previous_model = os.environ.get("TURTLEBOT3_MODEL")
         os.environ["TURTLEBOT3_MODEL"] = "waffle"
         try:
@@ -60,12 +60,25 @@ class LaunchFileTest(unittest.TestCase):
                 os.environ["TURTLEBOT3_MODEL"] = previous_model
 
         entities = launch_description.entities
-        self.assertTrue(
-            any(isinstance(entity, IncludeLaunchDescription) for entity in entities)
+        included_launches = [
+            entity
+            for entity in entities
+            if isinstance(entity, IncludeLaunchDescription)
+        ]
+        self.assertEqual(
+            len(included_launches),
+            2,
         )
         self.assertTrue(
             any(
                 isinstance(entity, SetEnvironmentVariable)
+                for entity in entities
+            )
+        )
+        # 巡检节点退出后保留 Gazebo、Nav2 和 RViz，便于检查最终导航状态。
+        self.assertFalse(
+            any(
+                entity.__class__.__name__ == "RegisterEventHandler"
                 for entity in entities
             )
         )

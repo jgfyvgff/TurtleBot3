@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "auto_patrol/localization_safety.hpp"
 #include "auto_patrol/pose_utils.hpp"
 
 namespace auto_patrol
@@ -25,6 +26,18 @@ void LocalizationMonitor::reset_for_relocalization()
     // 要求重定位请求之后重新收到扫描和 AMCL 位姿，避免复用旧粒子状态。
     scan_received_ = false;
     amcl_pose_received_ = false;
+    latest_scan_.reset();
+    previous_amcl_pose_.reset();
+    amcl_stable_count_ = 0;
+    confident_amcl_sample_count_ = 0;
+    covariance_received_ = false;
+}
+
+void LocalizationMonitor::begin_translation_validation()
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    // 平移必须依据新的 AMCL 结果验证，但不能丢弃仍用于防碰撞的最新激光。
+    amcl_pose_received_ = false;
     previous_amcl_pose_.reset();
     amcl_stable_count_ = 0;
     confident_amcl_sample_count_ = 0;
@@ -38,6 +51,7 @@ bool LocalizationMonitor::update_scan(
     std::lock_guard<std::mutex> lock(mutex_);
     scan_received_ = true;
     last_scan_stamp_ = message.header.stamp;
+    latest_scan_ = message;
     return pose_utils::timestamp_is_current(
         message.header.stamp,
         now,
@@ -131,6 +145,19 @@ bool LocalizationMonitor::relocalization_is_ready(
         amcl_pose_is_current_unlocked(now) &&
         covariance_received_ &&
         confident_amcl_sample_count_ >= stable_amcl_samples_;
+}
+
+bool LocalizationMonitor::front_clearance_is_safe(
+    const rclcpp::Time & now,
+    double minimum_clearance,
+    double sector_half_angle) const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return scan_is_current_unlocked(now) && latest_scan_.has_value() &&
+        localization_safety::scan_has_safe_front_clearance(
+        *latest_scan_,
+        minimum_clearance,
+        sector_half_angle);
 }
 
 bool LocalizationMonitor::scan_is_current_unlocked(const rclcpp::Time & now) const

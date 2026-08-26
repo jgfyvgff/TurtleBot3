@@ -33,6 +33,12 @@ AutoPatrolNode::AutoPatrolNode()
                 handle_localization_finished(success);
             });
     }
+    costmap_cleaner_ = std::make_unique<CostmapCleaner>(
+        *this,
+        config_,
+        [this](bool success) {
+            handle_costmap_cleanup_finished(success);
+        });
     patrol_controller_ = std::make_unique<PatrolController>(
         *this,
         config_,
@@ -53,6 +59,13 @@ AutoPatrolNode::AutoPatrolNode()
         rclcpp::SensorDataQoS(),
         [this](const sensor_msgs::msg::LaserScan::SharedPtr message) {
             handle_scan(message);
+        });
+
+    odometry_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
+        config_.odom_topic,
+        rclcpp::QoS(10),
+        [this](const nav_msgs::msg::Odometry::SharedPtr message) {
+            handle_odometry(message);
         });
 
     startup_timer_ = create_wall_timer(500ms, [this]() { startup_tick(); });
@@ -88,6 +101,16 @@ void AutoPatrolNode::handle_scan(
             5000,
             "LaserScan timestamp is stale or inconsistent.");
     }
+}
+
+void AutoPatrolNode::handle_odometry(
+    const nav_msgs::msg::Odometry::SharedPtr message)
+{
+    if (!message || !localization_bootstrapper_) {
+        return;
+    }
+
+    localization_bootstrapper_->update_odometry(*message, now());
 }
 
 void AutoPatrolNode::handle_amcl_pose(
@@ -163,7 +186,34 @@ void AutoPatrolNode::handle_localization_finished(bool success)
 
     RCLCPP_INFO(
         get_logger(),
-        "Localization bootstrap completed; starting patrol.");
+        "Localization bootstrap completed; clearing Nav2 costmaps.");
+    start_costmap_cleanup();
+}
+
+void AutoPatrolNode::start_costmap_cleanup()
+{
+    if (finished_ || !costmap_cleaner_) {
+        handle_costmap_cleanup_finished(false);
+        return;
+    }
+
+    costmap_cleaner_->start();
+}
+
+void AutoPatrolNode::handle_costmap_cleanup_finished(bool success)
+{
+    if (finished_) {
+        return;
+    }
+
+    if (!success) {
+        RCLCPP_ERROR(
+            get_logger(),
+            "Nav2 costmap cleanup failed; patrol will not start with stale observations.");
+        handle_patrol_finished(false);
+        return;
+    }
+
     patrol_controller_->start();
 }
 
@@ -192,7 +242,7 @@ void AutoPatrolNode::start_localization_wait()
         RCLCPP_INFO(
             get_logger(),
             "Manual initial pose is localized with sufficient confidence.");
-        patrol_controller_->start();
+        handle_localization_finished(true);
     });
 }
 
@@ -209,6 +259,9 @@ void AutoPatrolNode::handle_patrol_finished(bool success)
     }
     if (initial_pose_publisher_) {
         initial_pose_publisher_->stop();
+    }
+    if (costmap_cleaner_) {
+        costmap_cleaner_->stop();
     }
     rclcpp::shutdown();
 }
@@ -235,6 +288,9 @@ void AutoPatrolNode::stop_components()
     }
     if (initial_pose_publisher_) {
         initial_pose_publisher_->stop();
+    }
+    if (costmap_cleaner_) {
+        costmap_cleaner_->stop();
     }
 }
 
