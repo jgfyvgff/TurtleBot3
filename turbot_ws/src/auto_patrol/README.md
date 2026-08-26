@@ -1,4 +1,6 @@
-# auto_patrol
+# TurtleBot3 `waffle` 自动巡检
+
+> ROS 2 Humble | `turtlebot3_world` | Nav2 | 三目标点自主巡检
 
 `auto_patrol` 是一个面向 TurtleBot3 的 ROS2 自动巡航节点。节点默认请求
 Nav2 AMCL 进行全局重定位，在确认传感器和定位状态有效后，依次执行三个
@@ -8,7 +10,29 @@ waypoint。定位阶段会自动通过 `/cmd_vel_nav` 原地旋转，主动获�
 仅进行安全原地旋转补足观测，再静止确认定位结果仍有效。
 确认后程序会清理全局和局部代价地图，等待其根据当前扫描重新生成障碍与膨胀层。
 默认流程不要求在 RViz 中手动点击 `2D Pose Estimate`，也不要求预先填写机器人
-出生位置。
+出生位置。本 README 面向作业验收与项目复现：先说明如何一条命令启动，再解释
+组件、定位状态机和 Nav2 调参入口。
+
+## 作业目标与已实现能力
+
+作业统一环境为 ROS 2 Humble、TurtleBot3 `waffle` 与 `turtlebot3_world`。项目以
+`NavigateToPose` Action 向 Nav2 提交三个 `map` 坐标系目标点，而不是绕过 Nav2
+直接控制机器人速度；规划、避障、恢复和速度平滑仍由 Nav2 负责。
+
+| 作业要求或加分方向 | 本项目实现 |
+| --- | --- |
+| 三个具有空间跨度的目标点 | `patrol.yaml` 中的 `waypoint_1/2/3`；三点均使用 `[x, y, yaw]`（m、m、rad）配置。 |
+| 避开环境障碍物 | 目标通过 Nav2 全局规划、局部 DWB 控制器、代价地图和恢复行为执行，不由巡检节点硬编码路径。 |
+| 无需 RViz 手动发送目标 | `PatrolController` 仅在上一个 `NavigateToPose` 返回 `SUCCEEDED` 后发送下一点。 |
+| 无需手动设置初始位姿 | 默认调用 AMCL `/reinitialize_global_localization`，再进行旋转、短距离平移和二次确认。 |
+| 少量命令启动 | `patrol_with_nav2.launch.py` 一次启动 Gazebo 世界、Nav2、RViz 和巡检节点。 |
+| 导航失败 Recovery | Nav2 负责路径无效、局部障碍等恢复；巡检节点对 `ABORTED` 或 `CANCELED` 的目标按 `max_retries` 重试。 |
+| 运动稳定性调节入口 | `nav2_waffle.yaml` 集中保存 DWB 与 `velocity_smoother` 参数。 |
+
+开发过程曾得到三点均返回 `Goal reached`、最终输出
+`Patrol completed successfully: all 3 goals reached.` 的运行结果。最终验收仍应按下文
+“验收录制建议”从完整启动过程重新录制，并以实际运行画面确认无明显碰撞、卡死或
+持续原地旋转。
 
 ## 组件职责
 
@@ -29,18 +53,28 @@ waypoint。定位阶段会自动通过 `/cmd_vel_nav` 原地旋转，主动获�
 
 ## 配置与启动文件
 
-本包按作业目录要求，将配置和 Launch 源文件放在 `src/` 下；构建后会安装到
-`share/auto_patrol/config` 和 `share/auto_patrol/launch`，因此仍可使用标准的
-`ros2 launch auto_patrol ...` 命令。
+本包按作业目录要求，将配置和 Launch 源文件放在 `src/` 下。地图源位于工作区根目录
+的 `map/`；CMake 会将其安装到 `share/auto_patrol/map`，因此标准
+`ros2 launch auto_patrol ...` 命令可以从任意工作目录启动。
 
 ```text
-src/
-├── config/
-│   ├── patrol.yaml          # waypoint、自动定位、超时和重试配置
-│   └── nav2_waffle.yaml     # 完整 Nav2 参数副本及速度平滑器配置
-└── launch/
-    ├── auto_patrol.launch.py       # 外部 Nav2 已启动时，仅启动巡检节点
-    └── patrol_with_nav2.launch.py  # 唯一仿真入口：世界、Nav2 和巡检节点
+turbot_ws/
+├── map/
+│   ├── map.yaml                    # 当前地图描述；image 字段为 map.png
+│   ├── map.png                     # 当前由 Nav2 map_server 实际加载的栅格图
+│   └── map.pgm                     # 保留的备用图像，除非修改 map.yaml，否则不会加载
+└── src/auto_patrol/
+    ├── include/auto_patrol/        # 公共接口和组件职责声明
+    ├── src/
+    │   ├── config/
+    │   │   ├── patrol.yaml         # waypoint、自动定位、超时和重试配置
+    │   │   └── nav2_waffle.yaml    # 完整 Nav2 参数副本及速度平滑器配置
+    │   ├── launch/
+    │   │   ├── auto_patrol.launch.py
+    │   │   └── patrol_with_nav2.launch.py
+    │   ├── main.cpp                # 仅负责 ROS2 初始化和退出码
+    │   └── *.cpp                   # 组件实现
+    └── test/                       # 纯逻辑和 Launch 结构测试
 ```
 
 `nav2_waffle.yaml` 基于当前 TurtleBot3 Humble 的
@@ -51,6 +85,26 @@ src/
 `patrol.yaml` 使用本项目已经成功完成三点巡检时的 waypoint 和定位等待时间。
 它是推荐的启动配置；表中“默认值”仍表示不加载 YAML、直接 `ros2 run` 时 C++
 节点内部声明的默认值。
+
+## 地图配置
+
+组合 Launch 的 `map` 参数默认使用构建后安装的
+`install/auto_patrol/share/auto_patrol/map/map.yaml`。该文件来自工作区根目录的
+`map/map.yaml`，当前内容为：
+
+```yaml
+image: map.png
+resolution: 0.05
+origin: [-2.37, -2.38, 0]
+```
+
+`image` 是相对 `map.yaml` 所在目录解析的，因此 `map.png` 必须和 `map.yaml` 一起
+保留并提交。`map.pgm` 当前不被 YAML 引用；只有将 `image: map.png` 改为
+`image: map.pgm` 后，Nav2 才会加载它。
+
+不要在 `nav2_waffle.yaml` 中写个人电脑的绝对地图路径。组合 Launch 会把自身的
+`map` 参数传给官方 `navigation2.launch.py`，由官方 Launch 覆盖 `map_server` 的
+`yaml_filename`。这样既保留了手动覆盖地图的能力，也保证仓库克隆到其他目录后可用。
 
 ## 自动定位状态机
 
@@ -185,8 +239,9 @@ colcon build --packages-select auto_patrol --symlink-install
 source install/setup.bash
 ```
 
-`--symlink-install` 便于开发阶段迭代；每次修改 `src/config` 或 `src/launch` 后，
-仍应重新执行一次构建，以确保安装空间包含当前配置。
+`--symlink-install` 便于开发阶段迭代；每次修改 `src/config`、`src/launch` 或
+工作区根目录 `map/` 后，仍应重新执行一次构建。普通安装会复制地图资源，重新构建
+才能让 `install/auto_patrol/share/auto_patrol/map/` 与源码保持一致。
 
 ## 测试
 
@@ -202,7 +257,8 @@ colcon test-result --verbose
 测试覆盖参数校验、角度转换、时间戳检查、AMCL 稳定样本、主动旋转下的连续
 低协方差样本、过期定位清零、前方净空拒绝策略以及 odom 平面距离计算。
 `CostmapCleaner` 使用本地 Fake 服务验证“双服务均成功才放行”和“服务不可用则
-超时失败”两条契约；真实 Nav2 与 Gazebo 的端到端效果仍需在下面的集成步骤中验证。
+超时失败”两条契约；Launch 结构测试还会确认根目录地图 YAML 存在且其 `image`
+文件可用。真实 Nav2 与 Gazebo 的端到端效果仍需在下面的集成步骤中验证。
 
 ## 运行
 
@@ -228,7 +284,8 @@ ros2 launch auto_patrol patrol_with_nav2.launch.py
 
 组合 Launch 会依次纳入官方 `turtlebot3_world`、官方 Nav2、RViz 和
 `auto_patrol_node`。它会设置 `TURTLEBOT3_MODEL=waffle`，以默认位置
-`(-2.0, -0.5)` 生成机器人，并使用 `src/config/nav2_waffle.yaml` 启动 Nav2。
+`(-2.0, -0.5)` 生成机器人，使用本包 `nav2_waffle.yaml` 启动 Nav2，并默认加载
+本项目 `map/map.yaml`。
 巡检节点自身等待 `/navigate_to_pose`、`/scan` 与 AMCL 数据，因此不依赖容易失效的
 固定启动延迟。
 
@@ -238,11 +295,22 @@ Gazebo 与官方 Nav2 Launch 会并行启动，因此 RViz 可能先于 Gazebo �
 和 RViz 会继续保留，便于检查最终机器人位置、路径和代价地图。需要结束整套仿真时，
 在该终端按 `Ctrl-C` 即可；不要额外启动第二个 Gazebo 或 RViz。
 
-若使用自己保存的地图，可覆盖 `map` 参数：
+若需要临时使用其他地图，可覆盖 `map` 参数。下面的命令使用当前工作区根目录的地图，
+与默认行为等价，也适合排查安装后的路径问题：
 
 ```bash
+cd /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws
 ros2 launch auto_patrol patrol_with_nav2.launch.py \
-  map:=/home/ljq/map.yaml
+  map:="$PWD/map/map.yaml"
+```
+
+启动后可在另一个终端确认地图已经由 map_server 发布：
+
+```bash
+source /opt/ros/humble/setup.bash
+source /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/setup.bash
+ros2 topic echo /map --once
+ros2 param get /map_server yaml_filename
 ```
 
 也可以在调试出生位置时覆盖世界坐标：
@@ -312,3 +380,20 @@ ros2 run auto_patrol auto_patrol_node --ros-args \
 - Action 回调使用 waypoint index 和 generation 校验，旧目标不能影响新目标；
 - 正常完成返回退出码 `0`，导航失败返回退出码 `1`；
 - Ctrl-C 等外部停止由 ROS2 负责结束 spin，不伪装成导航成功。
+
+## 验收录制建议
+
+1. 从一个干净终端执行“**一条命令启动完整仿真与巡检**”中的命令，并从该时刻开始录制。
+2. 画面中保留 Gazebo 与 RViz；不要点击 `2D Pose Estimate` 或 `Navigation2 Goal`。
+3. 记录自动 AMCL 定位、三个目标点的连续到达、至少一段绕障路径，以及终端的
+   `Patrol completed successfully: all 3 goals reached.`。
+4. 任务完成后，Gazebo、Nav2 和 RViz 会保留以便检查路径、TF 和代价地图；按启动
+   Launch 的终端执行 `Ctrl-C` 才会关闭整套仿真。
+
+提交 GitHub 前请将地图资源一起纳入版本控制：
+
+```bash
+cd /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3
+git add turbot_ws/map/map.yaml turbot_ws/map/map.png turbot_ws/map/map.pgm
+git status --short
+```

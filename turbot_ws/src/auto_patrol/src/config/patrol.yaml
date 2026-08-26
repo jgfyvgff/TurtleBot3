@@ -47,6 +47,6 @@ auto_patrol:
     future_message_tolerance_sec: 0.5
 
     # 这三个点已经在当前地图坐标系中完成过一次成功巡检。
-    waypoint_1: [-0.414, 1.41, 0.0]
-    waypoint_2: [1.75, -0.535, 1.57]
-    waypoint_3: [0.318, -1.81, 3.14]
+    waypoint_1: [2.39, 0.553, 0.0]
+    waypoint_2: [0.48, -1.22, 1.57]
+    waypoint_3: [-1.43, 0.682, 0.0]

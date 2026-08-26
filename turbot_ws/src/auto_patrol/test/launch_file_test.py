@@ -13,6 +13,8 @@ from launch_ros.actions import Node
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 LAUNCH_DIRECTORY = PACKAGE_ROOT / "src" / "launch"
+WORKSPACE_ROOT = PACKAGE_ROOT.parents[1]
+PROJECT_MAP = WORKSPACE_ROOT / "map" / "map.yaml"
 
 
 def load_launch_module(file_name):
@@ -75,6 +77,13 @@ class LaunchFileTest(unittest.TestCase):
                 for entity in entities
             )
         )
+        # 组合 Launch 必须保留可覆盖的 map 参数；其默认值由本包安装的地图提供。
+        self.assertTrue(
+            any(
+                isinstance(entity, DeclareLaunchArgument) and entity.name == "map"
+                for entity in entities
+            )
+        )
         # 巡检节点退出后保留 Gazebo、Nav2 和 RViz，便于检查最终导航状态。
         self.assertFalse(
             any(
@@ -90,3 +99,17 @@ class LaunchFileTest(unittest.TestCase):
                 for entity in entities
             )
         )
+
+    def test_project_map_declares_existing_image(self):
+        """地图 YAML 和其 image 字段必须随仓库提供，避免运行时才暴露缺图错误."""
+        self.assertTrue(PROJECT_MAP.is_file())
+
+        map_yaml = PROJECT_MAP.read_text(encoding="utf-8")
+        image_line = next(
+            (line for line in map_yaml.splitlines() if line.startswith("image:")),
+            "",
+        )
+        self.assertTrue(image_line)
+
+        image_name = image_line.split(":", maxsplit=1)[1].strip()
+        self.assertTrue((PROJECT_MAP.parent / image_name).is_file())

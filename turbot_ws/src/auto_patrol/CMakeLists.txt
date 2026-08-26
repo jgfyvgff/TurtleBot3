@@ -87,6 +87,13 @@ install(
   DESTINATION share/${PROJECT_NAME}
 )
 
+# 地图源位于工作区根目录的 map/。将其安装到本包 share 目录后，
+# Launch 不依赖运行命令所在目录，也不需要写入个人机器的绝对路径。
+install(
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../../map/
+  DESTINATION share/${PROJECT_NAME}/map
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   set(ament_cmake_copyright_FOUND TRUE)

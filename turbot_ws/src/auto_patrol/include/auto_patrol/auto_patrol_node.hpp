@@ -17,14 +17,14 @@
 namespace auto_patrol
 {
 
-// ROS2 Node 只组装组件、接收消息、驱动 Timer，并将业务终态转换为进程退出码。
+// AutoPatrolNode类负责整个自动巡逻过程的控制和管理
 class AutoPatrolNode final : public rclcpp::Node
 {
 public:
-    AutoPatrolNode();
+    AutoPatrolNode();//
     ~AutoPatrolNode() override;
 
-    int exit_code() const noexcept;
+    int exit_code() const noexcept;// 返回退出代码
 
 private:
     void handle_scan(const sensor_msgs::msg::LaserScan::SharedPtr message);

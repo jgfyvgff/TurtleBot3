@@ -35,7 +35,9 @@ def generate_launch_description():
         "launch",
         "turtlebot3_world.launch.py",
     )
-    default_map = os.path.join(turtlebot3_navigation_share, "map", "map.yaml")
+    # CMake 会把工作区根目录 map/ 安装到 share/auto_patrol/map。
+    # 使用安装后的资源可避免从任意终端启动 Launch 时找不到用户地图。
+    default_map = os.path.join(auto_patrol_share, "map", "map.yaml")
     map_file = LaunchConfiguration("map")
     use_sim_time = LaunchConfiguration("use_sim_time")
     x_pose = LaunchConfiguration("x_pose")
