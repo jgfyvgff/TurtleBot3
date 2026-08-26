@@ -10,8 +10,7 @@ waypoint。定位阶段会自动通过 `/cmd_vel_nav` 原地旋转，主动获�
 仅进行安全原地旋转补足观测，再静止确认定位结果仍有效。
 确认后程序会清理全局和局部代价地图，等待其根据当前扫描重新生成障碍与膨胀层。
 默认流程不要求在 RViz 中手动点击 `2D Pose Estimate`，也不要求预先填写机器人
-出生位置。本 README 面向作业验收与项目复现：先说明如何一条命令启动，再解释
-组件、定位状态机和 Nav2 调参入口。
+出生位置。
 
 ## 作业目标与已实现能力
 
@@ -30,9 +29,7 @@ waypoint。定位阶段会自动通过 `/cmd_vel_nav` 原地旋转，主动获�
 | 运动稳定性调节入口 | `nav2_waffle.yaml` 集中保存 DWB 与 `velocity_smoother` 参数。 |
 
 开发过程曾得到三点均返回 `Goal reached`、最终输出
-`Patrol completed successfully: all 3 goals reached.` 的运行结果。最终验收仍应按下文
-“验收录制建议”从完整启动过程重新录制，并以实际运行画面确认无明显碰撞、卡死或
-持续原地旋转。
+`Patrol completed successfully: all 3 goals reached.` 的运行结果
 
 ## 组件职责
 
@@ -233,7 +230,7 @@ AMCL 后，稳定样本计数和置信度会被清零。
 ## 构建
 
 ```bash
-cd /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws
+cd TurtleBot3/turbot_ws
 source /opt/ros/humble/setup.bash
 colcon build --packages-select auto_patrol --symlink-install
 source install/setup.bash
@@ -248,7 +245,7 @@ source install/setup.bash
 测试不依赖真实机器人、摄像头、LaserScan 发布器或 Nav2 Action Server：
 
 ```bash
-cd /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws
+cd TurtleBot3/turbot_ws
 source /opt/ros/humble/setup.bash
 colcon test --packages-select auto_patrol
 colcon test-result --verbose
@@ -267,8 +264,9 @@ colcon test-result --verbose
 当 Nav2 已经通过其他终端启动时，使用：
 
 ```bash
+cd TurtleBot3/turbot_ws
 source /opt/ros/humble/setup.bash
-source /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/setup.bash
+source install/setup.bash
 ros2 launch auto_patrol auto_patrol.launch.py use_sim_time:=true
 ```
 
@@ -277,8 +275,9 @@ ros2 launch auto_patrol auto_patrol.launch.py use_sim_time:=true
 完成构建并执行 `source install/setup.bash` 后，只需在一个终端运行：
 
 ```bash
+cd TurtleBot3/turbot_ws
 source /opt/ros/humble/setup.bash
-source /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/setup.bash
+source install/setup.bash
 ros2 launch auto_patrol patrol_with_nav2.launch.py
 ```
 
@@ -299,7 +298,7 @@ Gazebo 与官方 Nav2 Launch 会并行启动，因此 RViz 可能先于 Gazebo �
 与默认行为等价，也适合排查安装后的路径问题：
 
 ```bash
-cd /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws
+cd TurtleBot3/turbot_ws
 ros2 launch auto_patrol patrol_with_nav2.launch.py \
   map:="$PWD/map/map.yaml"
 ```
@@ -307,8 +306,9 @@ ros2 launch auto_patrol patrol_with_nav2.launch.py \
 启动后可在另一个终端确认地图已经由 map_server 发布：
 
 ```bash
+cd TurtleBot3/turbot_ws
 source /opt/ros/humble/setup.bash
-source /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/setup.bash
+source install/setup.bash
 ros2 topic echo /map --once
 ros2 param get /map_server yaml_filename
 ```
@@ -327,8 +327,9 @@ ros2 launch auto_patrol patrol_with_nav2.launch.py \
 同一个 `use_sim_time` 值：
 
 ```bash
+cd TurtleBot3/turbot_ws
 source /opt/ros/humble/setup.bash
-source /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/install/setup.bash
+source install/setup.bash
 ros2 run auto_patrol auto_patrol_node
 ```
 
@@ -381,19 +382,4 @@ ros2 run auto_patrol auto_patrol_node --ros-args \
 - 正常完成返回退出码 `0`，导航失败返回退出码 `1`；
 - Ctrl-C 等外部停止由 ROS2 负责结束 spin，不伪装成导航成功。
 
-## 验收录制建议
 
-1. 从一个干净终端执行“**一条命令启动完整仿真与巡检**”中的命令，并从该时刻开始录制。
-2. 画面中保留 Gazebo 与 RViz；不要点击 `2D Pose Estimate` 或 `Navigation2 Goal`。
-3. 记录自动 AMCL 定位、三个目标点的连续到达、至少一段绕障路径，以及终端的
-   `Patrol completed successfully: all 3 goals reached.`。
-4. 任务完成后，Gazebo、Nav2 和 RViz 会保留以便检查路径、TF 和代价地图；按启动
-   Launch 的终端执行 `Ctrl-C` 才会关闭整套仿真。
-
-提交 GitHub 前请将地图资源一起纳入版本控制：
-
-```bash
-cd /home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3
-git add turbot_ws/map/map.yaml turbot_ws/map/map.png turbot_ws/map/map.pgm
-git status --short
-```
