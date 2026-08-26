@@ -1,1 +1,0 @@
-/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/turtlebot3/turtlebot3_bringup/launch/rviz2.launch.py

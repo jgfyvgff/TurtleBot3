@@ -1,1 +1,0 @@
-/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs/rosidl_typesupport_introspection_cpp/turtlebot3_msgs/msg/detail/version_info__rosidl_typesupport_introspection_cpp.hpp

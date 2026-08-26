@@ -1,1 +1,0 @@
-/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/src/DynamixelSDK/ros/dynamixel_sdk/src/dynamixel_easy_sdk/motor.cpp

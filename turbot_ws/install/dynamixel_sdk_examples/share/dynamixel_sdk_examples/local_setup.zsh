@@ -1,1 +1,0 @@
-/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk_examples/ament_cmake_environment_hooks/local_setup.zsh

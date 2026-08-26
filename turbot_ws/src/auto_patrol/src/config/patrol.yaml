@@ -1,0 +1,39 @@
+auto_patrol:
+  ros__parameters:
+    # Gazebo、Nav2 和 auto_patrol 必须使用同一套仿真时间。
+    use_sim_time: true
+    goal_frame: map
+    amcl_pose_topic: /amcl_pose
+    scan_topic: /scan
+
+    # 自动全局重定位：请求 AMCL 后低速旋转获取不同方向的激光观测。
+    automatic_global_localization: true
+    localization_timeout_sec: 130.0
+    localization_position_variance_threshold: 0.25
+    localization_yaw_variance_threshold: 0.10
+    localization_exploration_enabled: true
+    localization_cmd_vel_topic: /cmd_vel_nav
+    localization_exploration_angular_speed: 0.40
+    localization_exploration_max_duration_sec: 150.0
+    localization_settle_duration_sec: 1.0
+
+    # 手动初始位姿是调试兼容模式，不能与自动全局重定位同时启用。
+    use_manual_initial_pose_fallback: false
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_yaw: 0.0
+    initial_pose_publish_count: 5
+    initial_pose_publish_period_sec: 1.0
+    initial_pose_wait_sec: 3.0
+
+    max_retries: 1
+    stable_amcl_samples: 5
+    stable_position_tolerance: 0.05
+    stable_yaw_tolerance: 0.10
+    max_message_age_sec: 2.0
+    future_message_tolerance_sec: 0.5
+
+    # 这三个点已经在当前地图坐标系中完成过一次成功巡检。
+    waypoint_1: [-0.414, 1.41, 0.0]
+    waypoint_2: [1.75, -0.535, 1.57]
+    waypoint_3: [0.318, -1.81, 3.14]

@@ -1,1 +1,0 @@
-/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_gazebo/ament_cmake_core/turtlebot3_gazeboConfig.cmake

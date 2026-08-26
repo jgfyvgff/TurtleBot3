@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/dynamixel_sdk_examples/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

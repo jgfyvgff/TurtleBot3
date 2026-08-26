@@ -1,9 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs/cmake_install.cmake",
-		"/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs/turtlebot3_msgs__py/cmake_install.cmake",
-		"/home/ljq/Desktop/ljq_zq/Turtlebot/TurtleBot3/turbot_ws/build/turtlebot3_msgs/turtlebot3_msgs__rs/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
