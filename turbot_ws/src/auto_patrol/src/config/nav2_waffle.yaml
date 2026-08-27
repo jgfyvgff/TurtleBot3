@@ -161,7 +161,9 @@ controller_server:
       angular_granularity: 0.025
       transform_tolerance: 0.2
       xy_goal_tolerance: 0.10
-      trans_stopped_velocity: 0.25
+      #trans_stopped_velocity: 0.25
+      #此参数用于判断机器人是否停止，若设置过大，机器人可能无法到达目标点
+      trans_stopped_velocity: 0.05
       short_circuit_trajectory_evaluation: True
       stateful: True
       critics: ["RotateToGoal", "Oscillation", "BaseObstacle", "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
