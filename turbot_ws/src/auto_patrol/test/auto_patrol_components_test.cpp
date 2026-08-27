@@ -9,10 +9,16 @@
 #include "rclcpp/executors/single_threaded_executor.hpp"
 
 #include "auto_patrol/costmap_cleaner.hpp"
+#include "auto_patrol/initial_pose_publisher.hpp"
+#include "auto_patrol/localization_bootstrapper.hpp"
 #include "auto_patrol/localization_monitor.hpp"
-#include "auto_patrol/localization_safety.hpp"
 #include "auto_patrol/patrol_config.hpp"
 #include "auto_patrol/pose_utils.hpp"
+#include "auto_patrol/scan_map_matcher.hpp"
+
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "nav_msgs/msg/occupancy_grid.hpp"
+#include "tf2_ros/static_transform_broadcaster.h"
 
 namespace
 {
@@ -33,20 +39,6 @@ auto make_pose_message(int32_t seconds, double x, double y, double yaw)
     return message;
 }
 
-auto make_scan_message(
-    int32_t seconds,
-    const std::vector<float> & ranges)
-{
-    sensor_msgs::msg::LaserScan message;
-    message.header.stamp = make_stamp(seconds);
-    message.angle_min = -0.4F;
-    message.angle_increment = 0.2F;
-    message.range_min = 0.05F;
-    message.range_max = 3.5F;
-    message.ranges = ranges;
-    return message;
-}
-
 auto make_valid_config()
 {
     auto_patrol::PatrolConfig config;
@@ -56,6 +48,96 @@ auto make_valid_config()
         {1.0, 1.0, 1.57},
     };
     return config;
+}
+
+auto make_asymmetric_map()
+{
+    nav_msgs::msg::OccupancyGrid map;
+    // 使用 0.1 m 栅格，避免测试中相差 0.2 m 的不同位姿仍落入同一占据单元。
+    map.info.resolution = 0.1F;
+    map.info.width = 100U;
+    map.info.height = 100U;
+    map.info.origin.orientation.w = 1.0;
+    map.data.assign(
+        static_cast<std::size_t>(map.info.width) *
+        static_cast<std::size_t>(map.info.height),
+        0);
+
+    const auto mark_obstacle = [&map](uint32_t column, uint32_t row) {
+        const std::size_t index =
+            static_cast<std::size_t>(row) *
+            static_cast<std::size_t>(map.info.width) +
+            static_cast<std::size_t>(column);
+        map.data[index] = 100;
+    };
+    // 这组不对称障碍端点对应真值位姿 (2.05, 2.05, 0)，用于验证全图匹配的坐标变换。
+    mark_obstacle(20U, 5U);
+    mark_obstacle(30U, 10U);
+    mark_obstacle(40U, 20U);
+    mark_obstacle(30U, 30U);
+    mark_obstacle(20U, 45U);
+    return map;
+}
+
+auto make_matching_scan()
+{
+    sensor_msgs::msg::LaserScan scan;
+    scan.header.frame_id = "base_footprint";
+    scan.angle_min = static_cast<float>(-std::acos(-1.0) / 2.0);
+    scan.angle_increment = static_cast<float>(std::acos(-1.0) / 4.0);
+    scan.range_min = 0.05F;
+    scan.range_max = 4.0F;
+    scan.ranges = {
+        1.5F,
+        static_cast<float>(std::sqrt(2.0)),
+        2.0F,
+        static_cast<float>(std::sqrt(2.0)),
+        2.5F,
+    };
+    return scan;
+}
+
+auto make_repeated_feature_map(bool add_false_candidate_interior_walls)
+{
+    nav_msgs::msg::OccupancyGrid map;
+    map.info.resolution = 0.1F;
+    map.info.width = 100U;
+    map.info.height = 100U;
+    map.info.origin.orientation.w = 1.0;
+    map.data.assign(
+        static_cast<std::size_t>(map.info.width) *
+        static_cast<std::size_t>(map.info.height),
+        0);
+
+    const auto mark_obstacle = [&map](uint32_t column, uint32_t row) {
+        const std::size_t index =
+            static_cast<std::size_t>(row) *
+            static_cast<std::size_t>(map.info.width) +
+            static_cast<std::size_t>(column);
+        map.data[index] = 100;
+    };
+
+    // 两个候选位置都具有相同的五个端点特征。仅凭端点距离时，它们是等价解。
+    mark_obstacle(20U, 5U);
+    mark_obstacle(30U, 10U);
+    mark_obstacle(40U, 20U);
+    mark_obstacle(30U, 30U);
+    mark_obstacle(20U, 45U);
+    mark_obstacle(60U, 5U);
+    mark_obstacle(70U, 10U);
+    mark_obstacle(80U, 20U);
+    mark_obstacle(70U, 30U);
+    mark_obstacle(60U, 45U);
+
+    if (add_false_candidate_interior_walls) {
+        // 第二组端点前额外放置墙体：其端点分数仍为零，但物理激光不可能穿过这些栅格。
+        mark_obstacle(60U, 10U);
+        mark_obstacle(65U, 15U);
+        mark_obstacle(70U, 20U);
+        mark_obstacle(65U, 25U);
+        mark_obstacle(60U, 30U);
+    }
+    return map;
 }
 
 class CostmapCleanerTest : public testing::Test
@@ -135,22 +217,28 @@ TEST(PatrolConfigTest, RejectsBothLocalizationModes)
         std::runtime_error);
 }
 
-TEST(PatrolConfigTest, RejectsInvalidLocalizationExploration)
+TEST(PatrolConfigTest, RejectsInvalidNoMotionLocalizationParameters)
 {
     auto config = make_valid_config();
-    config.localization_cmd_vel_topic.clear();
+    config.localization_global_localization_service.clear();
     EXPECT_THROW(
         auto_patrol::validate_patrol_config(config),
         std::runtime_error);
 
     config = make_valid_config();
-    config.localization_exploration_angular_speed = 0.0;
+    config.localization_nomotion_update_service.clear();
     EXPECT_THROW(
         auto_patrol::validate_patrol_config(config),
         std::runtime_error);
 
     config = make_valid_config();
-    config.localization_exploration_max_duration_sec = -1.0;
+    config.localization_nomotion_update_period_sec = 0.0;
+    EXPECT_THROW(
+        auto_patrol::validate_patrol_config(config),
+        std::runtime_error);
+
+    config = make_valid_config();
+    config.localization_odom_frame.clear();
     EXPECT_THROW(
         auto_patrol::validate_patrol_config(config),
         std::runtime_error);
@@ -162,66 +250,30 @@ TEST(PatrolConfigTest, RejectsInvalidLocalizationExploration)
         std::runtime_error);
 }
 
-TEST(PatrolConfigTest, RejectsInvalidTranslationAndCostmapParameters)
+TEST(PatrolConfigTest, RejectsInvalidScanMatchingParameters)
 {
     auto config = make_valid_config();
-    config.localization_exploration_linear_speed = 0.0;
+    config.localization_scan_match_max_beams = 2;
     EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
 
     config = make_valid_config();
-    config.localization_exploration_translation_distance = -0.1;
+    config.localization_scan_match_refine_step_m = 0.0;
     EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
 
     config = make_valid_config();
-    config.localization_exploration_front_sector_half_angle = 4.0;
+    config.localization_scan_match_max_initial_pose_retries = -1;
     EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
+}
 
-    config = make_valid_config();
+TEST(PatrolConfigTest, RejectsInvalidCostmapParameters)
+{
+    auto config = make_valid_config();
     config.costmap_clear_timeout_sec = 0.0;
     EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
 
     config = make_valid_config();
     config.global_costmap_clear_service.clear();
     EXPECT_THROW(auto_patrol::validate_patrol_config(config), std::runtime_error);
-}
-
-TEST(LocalizationSafetyTest, AllowsTranslationWithValidFrontClearance)
-{
-    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.7F, 0.8F, 1.0F});
-    EXPECT_TRUE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
-        scan,
-        0.45,
-        0.35));
-    EXPECT_NEAR(
-        auto_patrol::localization_safety::planar_distance(0.0, 0.0, 0.18, 0.24),
-        0.30,
-        1e-9);
-}
-
-TEST(LocalizationSafetyTest, RequiresClearanceForTheWholeTranslation)
-{
-    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.69F, 0.8F, 1.0F});
-
-    EXPECT_TRUE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
-        scan, 0.45, 0.35));
-    EXPECT_FALSE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
-        scan, 0.70, 0.35));
-}
-
-TEST(LocalizationSafetyTest, RejectsObstacleAndInvalidFrontMeasurements)
-{
-    auto blocked = make_scan_message(9, {1.0F, 0.8F, 0.40F, 0.8F, 1.0F});
-    EXPECT_FALSE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
-        blocked,
-        0.45,
-        0.35));
-
-    const float nan = std::numeric_limits<float>::quiet_NaN();
-    auto invalid = make_scan_message(9, {nan, nan, nan, nan, nan});
-    EXPECT_FALSE(auto_patrol::localization_safety::scan_has_safe_front_clearance(
-        invalid,
-        0.45,
-        0.35));
 }
 
 TEST(PoseUtilsTest, NormalizesAnglesAndComputesDifference)
@@ -317,7 +369,7 @@ TEST(LocalizationMonitorTest, RequiresLowAmclCovariance)
     first.pose.covariance[7] = 0.01;
     first.pose.covariance[35] = 0.01;
     monitor.update_amcl_pose(first, now);
-    EXPECT_FALSE(monitor.confidence_is_sufficient(now));
+    EXPECT_FALSE(monitor.is_ready(now));
 
     auto second = make_pose_message(9, 0.0, 0.0, 0.0);
     second.pose.covariance[0] = 0.01;
@@ -326,7 +378,10 @@ TEST(LocalizationMonitorTest, RequiresLowAmclCovariance)
     monitor.update_amcl_pose(second, now);
 
     EXPECT_FALSE(monitor.is_ready(now));
-    EXPECT_TRUE(monitor.confidence_is_sufficient(now));
+
+    monitor.update_amcl_pose(
+        make_pose_message(9, 0.0, 0.0, 0.0), now);
+    EXPECT_TRUE(monitor.is_ready(now));
 }
 
 TEST(LocalizationMonitorTest, ResetRequiresNewLocalizationSamples)
@@ -353,20 +408,6 @@ TEST(LocalizationMonitorTest, ResetRequiresNewLocalizationSamples)
     EXPECT_TRUE(monitor.is_ready(now));
 }
 
-TEST(LocalizationMonitorTest, RequiresCurrentScanForTranslationClearance)
-{
-    auto config = make_valid_config();
-    auto_patrol::LocalizationMonitor monitor(config);
-    const auto now = rclcpp::Time(10, 0, RCL_ROS_TIME);
-    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.7F, 0.8F, 1.0F});
-
-    ASSERT_TRUE(monitor.update_scan(scan, now));
-    EXPECT_TRUE(monitor.front_clearance_is_safe(now, 0.45, 0.35));
-
-    const auto stale_now = rclcpp::Time(12, 0, RCL_ROS_TIME);
-    EXPECT_FALSE(monitor.front_clearance_is_safe(stale_now, 0.45, 0.35));
-}
-
 TEST(LocalizationMonitorTest, RequiresCurrentAmclPose)
 {
     auto config = make_valid_config();
@@ -384,61 +425,237 @@ TEST(LocalizationMonitorTest, RequiresCurrentAmclPose)
         make_pose_message(9, 0.0, 0.0, 0.0),
         current_time);
     ASSERT_TRUE(monitor.is_ready(current_time));
-    ASSERT_TRUE(monitor.relocalization_is_ready(current_time));
 
     sensor_msgs::msg::LaserScan fresh_scan;
     fresh_scan.header.stamp = make_stamp(12);
     const auto later_time = rclcpp::Time(12, 0, RCL_ROS_TIME);
     monitor.update_scan(fresh_scan, later_time);
     EXPECT_FALSE(monitor.is_ready(later_time));
-    EXPECT_FALSE(monitor.relocalization_is_ready(later_time));
-    EXPECT_FALSE(monitor.confidence_is_sufficient(later_time));
-
 }
 
-TEST(LocalizationMonitorTest, RelocalizationAcceptsExpectedYawMotion)
+TEST(ScanMapMatcherTest, FindsTheOnlyLowErrorPoseInAnAsymmetricMap)
 {
     auto config = make_valid_config();
-    config.stable_amcl_samples = 3;
-    auto_patrol::LocalizationMonitor monitor(config);
-    const auto now = rclcpp::Time(10, 0, RCL_ROS_TIME);
+    config.localization_scan_match_coarse_step_m = 0.5;
+    config.localization_scan_match_coarse_yaw_step_rad = std::acos(-1.0) / 4.0;
+    config.localization_scan_match_refine_step_m = 0.05;
+    config.localization_scan_match_refine_yaw_step_rad = std::acos(-1.0) / 36.0;
+    config.localization_scan_match_max_beams = 5;
+    config.localization_scan_match_max_range_m = 3.0;
+    config.localization_scan_match_max_mean_error_m = 0.05;
+    config.localization_scan_match_min_margin_m = 0.05;
+    config.localization_scan_match_min_separation_m = 0.5;
+    config.localization_scan_match_min_yaw_separation_rad = std::acos(-1.0) / 6.0;
 
-    sensor_msgs::msg::LaserScan scan;
-    scan.header.stamp = make_stamp(9);
-    monitor.reset_for_relocalization();
-    monitor.update_scan(scan, now);
+    auto_patrol::ScanMapMatcher matcher(config);
+    matcher.update_map(make_asymmetric_map());
+    matcher.update_scan(make_matching_scan());
 
-    monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.0), now);
-    monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.25), now);
-    EXPECT_FALSE(monitor.is_ready(now));
-    EXPECT_FALSE(monitor.relocalization_is_ready(now));
+    const auto true_error = matcher.score_pose(
+        auto_patrol::PlanarTransform{2.05, 2.05, 0.0},
+        auto_patrol::PlanarTransform{});
+    const auto displaced_error = matcher.score_pose(
+        auto_patrol::PlanarTransform{3.05, 2.05, 0.0},
+        auto_patrol::PlanarTransform{});
+    ASSERT_TRUE(true_error.has_value());
+    ASSERT_TRUE(displaced_error.has_value());
+    EXPECT_NEAR(*true_error, 0.0, 1e-9);
+    EXPECT_GT(*displaced_error, 0.05);
 
-    monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.50), now);
-    EXPECT_FALSE(monitor.is_ready(now));
-    EXPECT_TRUE(monitor.relocalization_is_ready(now));
+    const auto result = matcher.find_global_match(auto_patrol::PlanarTransform{});
+    ASSERT_TRUE(result.map_and_scan_ready);
+    ASSERT_TRUE(result.accepted);
+    EXPECT_NEAR(result.best_pose.x, 2.05, 0.10);
+    EXPECT_NEAR(result.best_pose.y, 2.05, 0.10);
+    EXPECT_NEAR(result.best_pose.yaw, 0.0, 0.10);
 }
 
-TEST(LocalizationMonitorTest, TranslationValidationKeepsScanButRequiresNewAmclEvidence)
+TEST(ScanMapMatcherTest, UsesFreeSpaceToRejectEndpointOnlyLookalike)
 {
     auto config = make_valid_config();
+    config.localization_scan_match_coarse_step_m = 0.5;
+    config.localization_scan_match_coarse_yaw_step_rad = std::acos(-1.0) / 4.0;
+    config.localization_scan_match_refine_step_m = 0.05;
+    config.localization_scan_match_refine_yaw_step_rad = std::acos(-1.0) / 36.0;
+    config.localization_scan_match_max_beams = 5;
+    config.localization_scan_match_max_range_m = 3.0;
+    config.localization_scan_match_free_space_max_beams = 5;
+    config.localization_scan_match_free_space_penalty_m = 0.25;
+    config.localization_scan_match_max_mean_error_m = 0.05;
+    config.localization_scan_match_min_margin_m = 0.05;
+    config.localization_scan_match_min_separation_m = 0.5;
+    config.localization_scan_match_min_yaw_separation_rad = std::acos(-1.0) / 6.0;
+
+    auto_patrol::ScanMapMatcher matcher(config);
+    matcher.update_map(make_repeated_feature_map(true));
+    matcher.update_scan(make_matching_scan());
+
+    const auto true_error = matcher.score_pose(
+        auto_patrol::PlanarTransform{2.05, 2.05, 0.0},
+        auto_patrol::PlanarTransform{});
+    const auto false_error = matcher.score_pose(
+        auto_patrol::PlanarTransform{6.05, 2.05, 0.0},
+        auto_patrol::PlanarTransform{});
+    ASSERT_TRUE(true_error.has_value());
+    ASSERT_TRUE(false_error.has_value());
+    EXPECT_NEAR(*true_error, 0.0, 1e-9);
+    EXPECT_GE(*false_error, 0.20);
+
+    const auto result = matcher.find_global_match(auto_patrol::PlanarTransform{});
+    ASSERT_TRUE(result.map_and_scan_ready);
+    EXPECT_TRUE(result.accepted);
+    EXPECT_NEAR(result.best_pose.x, 2.05, 0.10);
+    EXPECT_NEAR(result.best_pose.y, 2.05, 0.10);
+    EXPECT_NEAR(result.best_free_space_mean_penalty_m, 0.0, 1e-9);
+}
+
+TEST(ScanMapMatcherTest, RejectsStrictlyIndistinguishableRepeatedFeatures)
+{
+    auto config = make_valid_config();
+    config.localization_scan_match_coarse_step_m = 0.5;
+    config.localization_scan_match_coarse_yaw_step_rad = std::acos(-1.0) / 4.0;
+    config.localization_scan_match_refine_step_m = 0.05;
+    config.localization_scan_match_refine_yaw_step_rad = std::acos(-1.0) / 36.0;
+    config.localization_scan_match_max_beams = 5;
+    config.localization_scan_match_max_range_m = 3.0;
+    config.localization_scan_match_free_space_max_beams = 5;
+    config.localization_scan_match_max_mean_error_m = 0.05;
+    config.localization_scan_match_min_margin_m = 0.05;
+    config.localization_scan_match_min_separation_m = 0.5;
+    config.localization_scan_match_min_yaw_separation_rad = std::acos(-1.0) / 6.0;
+
+    auto_patrol::ScanMapMatcher matcher(config);
+    matcher.update_map(make_repeated_feature_map(false));
+    matcher.update_scan(make_matching_scan());
+
+    const auto result = matcher.find_global_match(auto_patrol::PlanarTransform{});
+    ASSERT_TRUE(result.map_and_scan_ready);
+    ASSERT_TRUE(result.runner_up_pose.has_value());
+    EXPECT_FALSE(result.accepted);
+    EXPECT_LT(
+        result.runner_up_mean_error_m - result.best_mean_error_m,
+        config.localization_scan_match_min_margin_m);
+    EXPECT_GE(
+        result.runner_up_position_distance_m,
+        config.localization_scan_match_min_separation_m);
+}
+
+TEST_F(CostmapCleanerTest, BootstrapperUsesScanMatchAndNoMotionServicesWithoutVelocityPublisher)
+{
+    using Empty = std_srvs::srv::Empty;
+
+    auto config = make_valid_config();
+    config.localization_global_localization_service =
+        "/test_reinitialize_global_localization";
+    config.localization_nomotion_update_service = "/test_request_nomotion_update";
+    config.localization_nomotion_update_period_sec = 0.05;
+    config.localization_settle_duration_sec = 0.05;
+    config.localization_timeout_sec = 2.0;
     config.stable_amcl_samples = 2;
-    auto_patrol::LocalizationMonitor monitor(config);
-    const auto now = rclcpp::Time(10, 0, RCL_ROS_TIME);
-    const auto scan = make_scan_message(9, {1.0F, 0.8F, 0.7F, 0.8F, 1.0F});
+    config.initial_pose_publish_count = 1;
+    config.initial_pose_publish_period_sec = 0.05;
+    config.initial_pose_wait_sec = 0.05;
+    // 使用测试私有话题，避免外部 Gazebo/AMCL 的仿真时间消息污染本测试的系统时间基。
+    config.scan_topic = "/test_localization_scan";
+    config.amcl_pose_topic = "/test_localization_amcl_pose";
 
-    monitor.update_scan(scan, now);
-    monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.0), now);
-    monitor.update_amcl_pose(make_pose_message(9, 0.0, 0.0, 0.1), now);
-    ASSERT_TRUE(monitor.relocalization_is_ready(now));
+    auto node = std::make_shared<rclcpp::Node>("localization_bootstrapper_test");
+    int global_request_count = 0;
+    int nomotion_request_count = 0;
+    auto global_service = node->create_service<Empty>(
+        config.localization_global_localization_service,
+        [&global_request_count](const std::shared_ptr<Empty::Request>,
+            std::shared_ptr<Empty::Response>) {
+            ++global_request_count;
+        });
+    auto nomotion_service = node->create_service<Empty>(
+        config.localization_nomotion_update_service,
+        [&nomotion_request_count](const std::shared_ptr<Empty::Request>,
+            std::shared_ptr<Empty::Response>) {
+            ++nomotion_request_count;
+        });
 
-    monitor.begin_translation_validation();
-    EXPECT_TRUE(monitor.front_clearance_is_safe(now, 0.45, 0.35));
-    EXPECT_FALSE(monitor.relocalization_is_ready(now));
+    tf2_ros::StaticTransformBroadcaster static_broadcaster(node);
+    geometry_msgs::msg::TransformStamped map_to_odom;
+    map_to_odom.header.stamp = node->now();
+    map_to_odom.header.frame_id = config.goal_frame;
+    map_to_odom.child_frame_id = config.localization_odom_frame;
+    map_to_odom.transform.rotation.w = 1.0;
+    static_broadcaster.sendTransform(map_to_odom);
 
-    monitor.update_amcl_pose(make_pose_message(9, 0.25, 0.0, 0.2), now);
-    monitor.update_amcl_pose(make_pose_message(9, 0.25, 0.0, 0.4), now);
-    EXPECT_TRUE(monitor.relocalization_is_ready(now));
-    EXPECT_TRUE(monitor.confidence_is_sufficient(now));
+    auto scan_publisher = node->create_publisher<sensor_msgs::msg::LaserScan>(
+        config.scan_topic,
+        rclcpp::QoS(10));
+    auto amcl_publisher = node->create_publisher<
+        geometry_msgs::msg::PoseWithCovarianceStamped>(
+        config.amcl_pose_topic,
+        rclcpp::QoS(10));
+    auto sensor_timer = node->create_wall_timer(
+        std::chrono::milliseconds(20), [&]() {
+        auto scan = make_matching_scan();
+        scan.header.stamp = node->now();
+        scan_publisher->publish(scan);
+
+        geometry_msgs::msg::PoseWithCovarianceStamped amcl_pose;
+        amcl_pose.header.stamp = node->now();
+        // Fake AMCL 与已知扫描匹配真值一致，验证状态机的默认成功路径。
+        amcl_pose.pose.pose = auto_patrol::pose_utils::make_pose(2.05, 2.05, 0.0);
+        amcl_publisher->publish(amcl_pose);
+    });
+
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node);
+    bool completed = false;
+    bool success = false;
+    {
+        auto_patrol::LocalizationMonitor monitor(config);
+        auto_patrol::ScanMapMatcher scan_map_matcher(config);
+        scan_map_matcher.update_map(make_asymmetric_map());
+        auto_patrol::InitialPosePublisher initial_pose_publisher(*node, config);
+        // 测试中没有 AutoPatrolNode 负责转发 Topic，因此在这里显式把 Fake 数据送入组件。
+        auto scan_subscription = node->create_subscription<sensor_msgs::msg::LaserScan>(
+            config.scan_topic,
+            rclcpp::QoS(10),
+            [&monitor, &scan_map_matcher, &node](
+                const sensor_msgs::msg::LaserScan::SharedPtr message) {
+                monitor.update_scan(*message, node->now());
+                scan_map_matcher.update_scan(*message);
+            });
+        auto amcl_subscription = node->create_subscription<
+            geometry_msgs::msg::PoseWithCovarianceStamped>(
+            config.amcl_pose_topic,
+            rclcpp::QoS(10),
+            [&monitor, &node](
+                const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr message) {
+                monitor.update_amcl_pose(*message, node->now());
+            });
+        auto_patrol::LocalizationBootstrapper bootstrapper(
+            *node,
+            config,
+            monitor,
+            scan_map_matcher,
+            initial_pose_publisher,
+            [&completed, &success](bool result) {
+                completed = true;
+                success = result;
+            });
+        bootstrapper.start();
+
+        EXPECT_TRUE(spin_until(
+            executor,
+            [&completed]() { return completed; },
+            // 默认路径包含一次全图匹配、初始位姿发布、服务轮询和 200 ms 静止确认。
+            // 3 s 仅是测试执行器调度上限，不改变任何生产超时参数。
+            std::chrono::milliseconds(3000)));
+        EXPECT_TRUE(success);
+        // 默认扫描匹配路径不应先让 AMCL 随机执行全局重定位。
+        EXPECT_EQ(global_request_count, 0);
+        EXPECT_GE(nomotion_request_count, 1);
+        bootstrapper.stop();
+    }
+
+    sensor_timer->cancel();
+    executor.remove_node(node);
 }
 
 TEST_F(CostmapCleanerTest, CompletesWhenBothFakeServicesRespond)

@@ -13,7 +13,9 @@ void declare_patrol_parameters(rclcpp::Node & node)
     node.declare_parameter<std::string>("goal_frame", "map");
     node.declare_parameter<std::string>("amcl_pose_topic", "/amcl_pose");
     node.declare_parameter<std::string>("scan_topic", "/scan");
-    node.declare_parameter<std::string>("odom_topic", "/odom");
+    node.declare_parameter<std::string>("localization_map_topic", "/map");
+    node.declare_parameter<std::string>(
+        "localization_base_frame", "base_footprint");
     node.declare_parameter<bool>("automatic_global_localization", true);
     node.declare_parameter<double>("localization_timeout_sec", 120.0);
     node.declare_parameter<double>(
@@ -22,36 +24,49 @@ void declare_patrol_parameters(rclcpp::Node & node)
     node.declare_parameter<double>(
         "localization_yaw_variance_threshold",
         0.10);
-    node.declare_parameter<bool>(
-        "localization_exploration_enabled",
-        true);
     node.declare_parameter<std::string>(
-        "localization_cmd_vel_topic",
-        "/cmd_vel_nav");
+        "localization_global_localization_service",
+        "/reinitialize_global_localization");
+    node.declare_parameter<std::string>(
+        "localization_nomotion_update_service",
+        "/request_nomotion_update");
     node.declare_parameter<double>(
-        "localization_exploration_angular_speed",
-        0.20);
-    node.declare_parameter<double>(
-        "localization_exploration_max_duration_sec",
-        40.0);
-    node.declare_parameter<double>(
-        "localization_exploration_linear_speed",
-        0.06);
-    node.declare_parameter<double>(
-        "localization_exploration_translation_distance",
-        0.25);
-    node.declare_parameter<double>(
-        "localization_exploration_translation_timeout_sec",
-        8.0);
-    node.declare_parameter<double>(
-        "localization_exploration_min_front_clearance",
-        0.45);
-    node.declare_parameter<double>(
-        "localization_exploration_front_sector_half_angle",
-        0.35);
+        "localization_nomotion_update_period_sec",
+        0.5);
+    node.declare_parameter<std::string>("localization_odom_frame", "odom");
     node.declare_parameter<double>(
         "localization_settle_duration_sec",
         1.0);
+    node.declare_parameter<bool>("localization_scan_match_enabled", true);
+    node.declare_parameter<double>(
+        "localization_scan_match_coarse_step_m", 0.20);
+    node.declare_parameter<double>(
+        "localization_scan_match_coarse_yaw_step_rad", 0.261799);
+    node.declare_parameter<double>(
+        "localization_scan_match_refine_step_m", 0.05);
+    node.declare_parameter<double>(
+        "localization_scan_match_refine_yaw_step_rad", 0.034907);
+    node.declare_parameter<int>("localization_scan_match_max_beams", 90);
+    node.declare_parameter<double>(
+        "localization_scan_match_max_range_m", 3.0);
+    node.declare_parameter<int>(
+        "localization_scan_match_free_space_max_beams", 12);
+    node.declare_parameter<double>(
+        "localization_scan_match_free_space_penalty_m", 0.25);
+    node.declare_parameter<double>(
+        "localization_scan_match_max_mean_error_m", 0.10);
+    node.declare_parameter<double>(
+        "localization_scan_match_min_margin_m", 0.05);
+    node.declare_parameter<double>(
+        "localization_scan_match_min_separation_m", 0.50);
+    node.declare_parameter<double>(
+        "localization_scan_match_min_yaw_separation_rad", 0.523599);
+    node.declare_parameter<double>(
+        "localization_scan_match_pose_tolerance_m", 0.20);
+    node.declare_parameter<double>(
+        "localization_scan_match_yaw_tolerance_rad", 0.20);
+    node.declare_parameter<int>(
+        "localization_scan_match_max_initial_pose_retries", 1);
     node.declare_parameter<double>("costmap_clear_timeout_sec", 5.0);
     node.declare_parameter<double>("costmap_clear_settle_duration_sec", 2.0);
     node.declare_parameter<std::string>(
@@ -89,7 +104,10 @@ PatrolConfig load_patrol_config(const rclcpp::Node & node)
     config.goal_frame = node.get_parameter("goal_frame").as_string();
     config.amcl_pose_topic = node.get_parameter("amcl_pose_topic").as_string();
     config.scan_topic = node.get_parameter("scan_topic").as_string();
-    config.odom_topic = node.get_parameter("odom_topic").as_string();
+    config.localization_map_topic =
+        node.get_parameter("localization_map_topic").as_string();
+    config.localization_base_frame =
+        node.get_parameter("localization_base_frame").as_string();
     config.automatic_global_localization =
         node.get_parameter("automatic_global_localization").as_bool();
     config.localization_timeout_sec =
@@ -98,31 +116,50 @@ PatrolConfig load_patrol_config(const rclcpp::Node & node)
         node.get_parameter("localization_position_variance_threshold").as_double();
     config.localization_yaw_variance_threshold =
         node.get_parameter("localization_yaw_variance_threshold").as_double();
-    config.localization_exploration_enabled =
-        node.get_parameter("localization_exploration_enabled").as_bool();
-    config.localization_cmd_vel_topic =
-        node.get_parameter("localization_cmd_vel_topic").as_string();
-    config.localization_exploration_angular_speed =
-        node.get_parameter("localization_exploration_angular_speed").as_double();
-    config.localization_exploration_max_duration_sec =
-        node.get_parameter(
-        "localization_exploration_max_duration_sec").as_double();
-    config.localization_exploration_linear_speed =
-        node.get_parameter("localization_exploration_linear_speed").as_double();
-    config.localization_exploration_translation_distance =
-        node.get_parameter(
-        "localization_exploration_translation_distance").as_double();
-    config.localization_exploration_translation_timeout_sec =
-        node.get_parameter(
-        "localization_exploration_translation_timeout_sec").as_double();
-    config.localization_exploration_min_front_clearance =
-        node.get_parameter(
-        "localization_exploration_min_front_clearance").as_double();
-    config.localization_exploration_front_sector_half_angle =
-        node.get_parameter(
-        "localization_exploration_front_sector_half_angle").as_double();
+    config.localization_global_localization_service =
+        node.get_parameter("localization_global_localization_service").as_string();
+    config.localization_nomotion_update_service =
+        node.get_parameter("localization_nomotion_update_service").as_string();
+    config.localization_nomotion_update_period_sec =
+        node.get_parameter("localization_nomotion_update_period_sec").as_double();
+    config.localization_odom_frame =
+        node.get_parameter("localization_odom_frame").as_string();
     config.localization_settle_duration_sec =
         node.get_parameter("localization_settle_duration_sec").as_double();
+    config.localization_scan_match_enabled =
+        node.get_parameter("localization_scan_match_enabled").as_bool();
+    config.localization_scan_match_coarse_step_m =
+        node.get_parameter("localization_scan_match_coarse_step_m").as_double();
+    config.localization_scan_match_coarse_yaw_step_rad =
+        node.get_parameter("localization_scan_match_coarse_yaw_step_rad").as_double();
+    config.localization_scan_match_refine_step_m =
+        node.get_parameter("localization_scan_match_refine_step_m").as_double();
+    config.localization_scan_match_refine_yaw_step_rad =
+        node.get_parameter("localization_scan_match_refine_yaw_step_rad").as_double();
+    config.localization_scan_match_max_beams = static_cast<int>(
+        node.get_parameter("localization_scan_match_max_beams").as_int());
+    config.localization_scan_match_max_range_m =
+        node.get_parameter("localization_scan_match_max_range_m").as_double();
+    config.localization_scan_match_free_space_max_beams = static_cast<int>(
+        node.get_parameter("localization_scan_match_free_space_max_beams").as_int());
+    config.localization_scan_match_free_space_penalty_m =
+        node.get_parameter("localization_scan_match_free_space_penalty_m").as_double();
+    config.localization_scan_match_max_mean_error_m =
+        node.get_parameter("localization_scan_match_max_mean_error_m").as_double();
+    config.localization_scan_match_min_margin_m =
+        node.get_parameter("localization_scan_match_min_margin_m").as_double();
+    config.localization_scan_match_min_separation_m =
+        node.get_parameter("localization_scan_match_min_separation_m").as_double();
+    config.localization_scan_match_min_yaw_separation_rad =
+        node.get_parameter(
+            "localization_scan_match_min_yaw_separation_rad").as_double();
+    config.localization_scan_match_pose_tolerance_m =
+        node.get_parameter("localization_scan_match_pose_tolerance_m").as_double();
+    config.localization_scan_match_yaw_tolerance_rad =
+        node.get_parameter("localization_scan_match_yaw_tolerance_rad").as_double();
+    config.localization_scan_match_max_initial_pose_retries = static_cast<int>(
+        node.get_parameter(
+            "localization_scan_match_max_initial_pose_retries").as_int());
     config.costmap_clear_timeout_sec =
         node.get_parameter("costmap_clear_timeout_sec").as_double();
     config.costmap_clear_settle_duration_sec =
@@ -181,8 +218,11 @@ void validate_patrol_config(const PatrolConfig & config)
     if (config.scan_topic.empty()) {
         throw std::runtime_error("scan_topic must not be empty.");
     }
-    if (config.odom_topic.empty()) {
-        throw std::runtime_error("odom_topic must not be empty.");
+    if (config.localization_map_topic.empty()) {
+        throw std::runtime_error("localization_map_topic must not be empty.");
+    }
+    if (config.localization_base_frame.empty()) {
+        throw std::runtime_error("localization_base_frame must not be empty.");
     }
     if (!std::isfinite(config.localization_timeout_sec) ||
         config.localization_timeout_sec <= 0.0)
@@ -201,61 +241,79 @@ void validate_patrol_config(const PatrolConfig & config)
         throw std::runtime_error(
             "localization_yaw_variance_threshold must be positive.");
     }
-    if (config.localization_exploration_enabled &&
-        config.localization_cmd_vel_topic.empty())
+    if (config.localization_global_localization_service.empty() ||
+        config.localization_nomotion_update_service.empty())
     {
         throw std::runtime_error(
-            "localization_cmd_vel_topic must not be empty when exploration is enabled.");
+            "AMCL localization service names must not be empty.");
     }
-    if (!std::isfinite(config.localization_exploration_angular_speed) ||
-        config.localization_exploration_angular_speed == 0.0)
+    if (!std::isfinite(config.localization_nomotion_update_period_sec) ||
+        config.localization_nomotion_update_period_sec < 0.05)
     {
         throw std::runtime_error(
-            "localization_exploration_angular_speed must be finite and non-zero.");
+            "localization_nomotion_update_period_sec must be finite and at least 0.05.");
     }
-    if (!std::isfinite(config.localization_exploration_max_duration_sec) ||
-        config.localization_exploration_max_duration_sec <= 0.0)
-    {
-        throw std::runtime_error(
-            "localization_exploration_max_duration_sec must be finite and positive.");
-    }
-    if (!std::isfinite(config.localization_exploration_linear_speed) ||
-        config.localization_exploration_linear_speed <= 0.0)
-    {
-        throw std::runtime_error(
-            "localization_exploration_linear_speed must be finite and positive.");
-    }
-    if (!std::isfinite(config.localization_exploration_translation_distance) ||
-        config.localization_exploration_translation_distance <= 0.0)
-    {
-        throw std::runtime_error(
-            "localization_exploration_translation_distance must be finite and positive.");
-    }
-    if (!std::isfinite(config.localization_exploration_translation_timeout_sec) ||
-        config.localization_exploration_translation_timeout_sec <= 0.0)
-    {
-        throw std::runtime_error(
-            "localization_exploration_translation_timeout_sec must be finite and positive.");
-    }
-    if (!std::isfinite(config.localization_exploration_min_front_clearance) ||
-        config.localization_exploration_min_front_clearance <= 0.0)
-    {
-        throw std::runtime_error(
-            "localization_exploration_min_front_clearance must be finite and positive.");
-    }
-    constexpr double pi = 3.14159265358979323846;
-    if (!std::isfinite(config.localization_exploration_front_sector_half_angle) ||
-        config.localization_exploration_front_sector_half_angle <= 0.0 ||
-        config.localization_exploration_front_sector_half_angle > pi)
-    {
-        throw std::runtime_error(
-            "localization_exploration_front_sector_half_angle must be in (0, pi].");
+    if (config.localization_odom_frame.empty()) {
+        throw std::runtime_error("localization_odom_frame must not be empty.");
     }
     if (!std::isfinite(config.localization_settle_duration_sec) ||
         config.localization_settle_duration_sec <= 0.0)
     {
         throw std::runtime_error(
             "localization_settle_duration_sec must be finite and positive.");
+    }
+    const auto require_positive_finite = [](double value, const std::string & name) {
+        if (!std::isfinite(value) || value <= 0.0) {
+            throw std::runtime_error(name + " must be finite and positive.");
+        }
+    };
+    require_positive_finite(
+        config.localization_scan_match_coarse_step_m,
+        "localization_scan_match_coarse_step_m");
+    require_positive_finite(
+        config.localization_scan_match_coarse_yaw_step_rad,
+        "localization_scan_match_coarse_yaw_step_rad");
+    require_positive_finite(
+        config.localization_scan_match_refine_step_m,
+        "localization_scan_match_refine_step_m");
+    require_positive_finite(
+        config.localization_scan_match_refine_yaw_step_rad,
+        "localization_scan_match_refine_yaw_step_rad");
+    require_positive_finite(
+        config.localization_scan_match_max_range_m,
+        "localization_scan_match_max_range_m");
+    require_positive_finite(
+        config.localization_scan_match_free_space_penalty_m,
+        "localization_scan_match_free_space_penalty_m");
+    require_positive_finite(
+        config.localization_scan_match_max_mean_error_m,
+        "localization_scan_match_max_mean_error_m");
+    require_positive_finite(
+        config.localization_scan_match_min_margin_m,
+        "localization_scan_match_min_margin_m");
+    require_positive_finite(
+        config.localization_scan_match_min_separation_m,
+        "localization_scan_match_min_separation_m");
+    require_positive_finite(
+        config.localization_scan_match_min_yaw_separation_rad,
+        "localization_scan_match_min_yaw_separation_rad");
+    require_positive_finite(
+        config.localization_scan_match_pose_tolerance_m,
+        "localization_scan_match_pose_tolerance_m");
+    require_positive_finite(
+        config.localization_scan_match_yaw_tolerance_rad,
+        "localization_scan_match_yaw_tolerance_rad");
+    if (config.localization_scan_match_max_beams < 3) {
+        throw std::runtime_error(
+            "localization_scan_match_max_beams must be at least 3.");
+    }
+    if (config.localization_scan_match_free_space_max_beams < 3) {
+        throw std::runtime_error(
+            "localization_scan_match_free_space_max_beams must be at least 3.");
+    }
+    if (config.localization_scan_match_max_initial_pose_retries < 0) {
+        throw std::runtime_error(
+            "localization_scan_match_max_initial_pose_retries must be non-negative.");
     }
     if (!std::isfinite(config.costmap_clear_timeout_sec) ||
         config.costmap_clear_timeout_sec <= 0.0)

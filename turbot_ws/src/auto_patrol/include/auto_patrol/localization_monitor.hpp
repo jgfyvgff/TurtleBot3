@@ -16,6 +16,13 @@ namespace auto_patrol
 class LocalizationMonitor final
 {
 public:
+    struct AmclPose
+    {
+        double x{0.0};
+        double y{0.0};
+        double yaw{0.0};
+    };
+
     explicit LocalizationMonitor(const PatrolConfig & config);
 
     // 返回时间戳是否有效，同时记录最近一次 LaserScan。
@@ -31,31 +38,13 @@ public:
     // 全局重定位会使旧粒子分布失效，因此必须丢弃服务调用前的稳定样本。
     void reset_for_relocalization();
 
-    // 平移验证开始时只清除 AMCL 证据，保留最近 LaserScan 供前方安全检查使用。
-    void begin_translation_validation();
-
-    // 主动探索时允许机器人正常旋转，只要求连续低协方差样本，不比较相邻 yaw。
-    bool relocalization_is_ready(const rclcpp::Time & now) const;
-
-    // 仅在当前 LaserScan 的前方扇区存在有效且足够远的量测时允许短距离平移。
-    bool front_clearance_is_safe(
-        const rclcpp::Time & now,
-        double minimum_clearance,
-        double sector_half_angle) const;
-
+    // 扫描匹配阶段只等待 LaserScan，不要求 AMCL 已经发布可用位姿。
+    bool scan_is_current(const rclcpp::Time & now) const;
     bool is_ready(const rclcpp::Time & now) const;
-
-    // 用于停止后的最终确认，必须同时保证 AMCL 位姿仍然新鲜。
-    bool confidence_is_sufficient(const rclcpp::Time & now) const;
+    // 返回最近一条通过时间戳校验的 AMCL 位姿，用于与独立扫描匹配结果复核。
+    std::optional<AmclPose> latest_amcl_pose() const;
 
 private:
-    struct PoseSample
-    {
-        double x;
-        double y;
-        double yaw;
-    };
-
     bool scan_is_current_unlocked(const rclcpp::Time & now) const;
     bool amcl_pose_is_current_unlocked(const rclcpp::Time & now) const;
 
@@ -72,11 +61,9 @@ private:
     bool amcl_pose_received_{false};
     builtin_interfaces::msg::Time last_scan_stamp_;
     builtin_interfaces::msg::Time last_amcl_pose_stamp_;
-    // 拷贝最近一帧扫描供安全判断使用；其访问始终受 mutex_ 保护。
-    std::optional<sensor_msgs::msg::LaserScan> latest_scan_;
-    std::optional<PoseSample> previous_amcl_pose_;
+    std::optional<AmclPose> previous_amcl_pose_;
+    std::optional<AmclPose> latest_amcl_pose_;
     int amcl_stable_count_{0};
-    int confident_amcl_sample_count_{0};
     bool covariance_received_{false};
     double position_variance_x_{0.0};
     double position_variance_y_{0.0};

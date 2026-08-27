@@ -21,6 +21,12 @@ public:
     ~InitialPosePublisher();
 
     void start(CompletionCallback on_complete);
+    // 自动扫描匹配得到候选后，通过此重载发布，而不是把候选写回全局参数。
+    void start(
+        double x,
+        double y,
+        double yaw,
+        CompletionCallback on_complete);
     void stop();
 
 private:
@@ -35,6 +41,9 @@ private:
     rclcpp::TimerBase::SharedPtr publish_timer_;
     rclcpp::TimerBase::SharedPtr wait_timer_;
     CompletionCallback on_complete_;
+    double target_x_{0.0};
+    double target_y_{0.0};
+    double target_yaw_{0.0};
     int published_count_{0};
     bool running_{false};
 };

@@ -14,21 +14,26 @@ AutoPatrolNode::AutoPatrolNode()
     declare_patrol_parameters(*this);
     config_ = load_patrol_config(*this);
     validate_patrol_config(config_);
+    //1.初始化
 
     localization_monitor_ = std::make_unique<LocalizationMonitor>(config_);
-    if (!config_.automatic_global_localization &&
+    scan_map_matcher_ = std::make_unique<ScanMapMatcher>(config_);
+    if (config_.automatic_global_localization ||
         config_.use_manual_initial_pose_fallback)
     {
         initial_pose_publisher_ = std::make_unique<InitialPosePublisher>(
             *this,
             config_);
     }
+    //如果是自动定位，
     if (config_.automatic_global_localization) {
         localization_bootstrapper_ =
             std::make_unique<LocalizationBootstrapper>(
             *this,
             config_,
             *localization_monitor_,
+            *scan_map_matcher_,
+            *initial_pose_publisher_,
             [this](bool success) {
                 handle_localization_finished(success);
             });
@@ -61,11 +66,12 @@ AutoPatrolNode::AutoPatrolNode()
             handle_scan(message);
         });
 
-    odometry_subscription_ = create_subscription<nav_msgs::msg::Odometry>(
-        config_.odom_topic,
-        rclcpp::QoS(10),
-        [this](const nav_msgs::msg::Odometry::SharedPtr message) {
-            handle_odometry(message);
+    // map_server 使用 transient-local 发布静态地图，晚启动的巡检节点仍必须拿到完整地图。
+    map_subscription_ = create_subscription<nav_msgs::msg::OccupancyGrid>(
+        config_.localization_map_topic,
+        rclcpp::QoS(1).reliable().transient_local(),
+        [this](const nav_msgs::msg::OccupancyGrid::SharedPtr message) {
+            handle_map(message);
         });
 
     startup_timer_ = create_wall_timer(500ms, [this]() { startup_tick(); });
@@ -93,7 +99,8 @@ void AutoPatrolNode::handle_scan(
     if (!message) {
         return;
     }
-    const bool current = localization_monitor_->update_scan(*message, now());
+    const bool current = localization_monitor_->update_scan(*message, now());//保证scan数据是最新的
+    scan_map_matcher_->update_scan(*message);
     if (!current) {
         RCLCPP_WARN_THROTTLE(
             get_logger(),
@@ -103,14 +110,13 @@ void AutoPatrolNode::handle_scan(
     }
 }
 
-void AutoPatrolNode::handle_odometry(
-    const nav_msgs::msg::Odometry::SharedPtr message)
+void AutoPatrolNode::handle_map(
+    const nav_msgs::msg::OccupancyGrid::SharedPtr message)
 {
-    if (!message || !localization_bootstrapper_) {
+    if (!message) {
         return;
     }
-
-    localization_bootstrapper_->update_odometry(*message, now());
+    scan_map_matcher_->update_map(*message);
 }
 
 void AutoPatrolNode::handle_amcl_pose(
@@ -164,6 +170,7 @@ void AutoPatrolNode::startup_tick()
     }
 }
 
+//处理定位完成的回调函数
 void AutoPatrolNode::handle_localization_finished(bool success)
 {
     if (finished_) {

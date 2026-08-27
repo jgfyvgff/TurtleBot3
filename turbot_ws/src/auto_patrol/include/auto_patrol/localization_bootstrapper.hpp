@@ -6,19 +6,22 @@
 #include <optional>
 #include <string>
 
-#include "geometry_msgs/msg/twist.hpp"
-#include "nav_msgs/msg/odometry.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "std_srvs/srv/empty.hpp"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
 
+#include "auto_patrol/initial_pose_publisher.hpp"
 #include "auto_patrol/localization_monitor.hpp"
 #include "auto_patrol/patrol_config.hpp"
+#include "auto_patrol/scan_map_matcher.hpp"
 
 namespace auto_patrol
 {
 
-// 通过 AMCL 全局重定位服务启动定位，不要求调用方预先提供 x、y、yaw。
-// 该组件只负责服务请求和收敛状态机，传感器状态由 LocalizationMonitor 提供。
+// 启用扫描匹配时，该组件先从静态地图与当前 LaserScan 推导全局初始位姿，再交由
+// AMCL 的无运动更新进行确认；关闭扫描匹配时才回退为 AMCL 全局重定位服务。
+// 无论哪条路径，该组件从不发布 Twist，也不控制机器人位姿。
 class LocalizationBootstrapper final
 {
 public:
@@ -28,92 +31,77 @@ public:
         rclcpp::Node & node,
         PatrolConfig config,
         LocalizationMonitor & monitor,
+        ScanMapMatcher & scan_map_matcher,
+        InitialPosePublisher & initial_pose_publisher,
         CompletionCallback on_complete);
     ~LocalizationBootstrapper();
 
     void start();
     void stop();
-    // Node 的 /odom 回调只更新最近样本；状态机由 Timer 推进，回调内不阻塞。
-    void update_odometry(
-        const nav_msgs::msg::Odometry & message,
-        const rclcpp::Time & now);
 
 private:
+    // Timer 驱动所有等待和状态转换，避免在 ROS2 服务回调中阻塞执行器。
     enum class State
     {
         IDLE,
         WAITING_FOR_GLOBAL_LOCALIZATION_SERVICE,
         REQUESTING_GLOBAL_LOCALIZATION,
-        // 此状态允许机器人主动旋转，因此不要求相邻 AMCL yaw 保持不变。
-        EXPLORING,
+        WAITING_FOR_SCAN_MATCH,
+        PUBLISHING_MATCHED_INITIAL_POSE,
+        WAITING_FOR_NOMOTION_UPDATE_SERVICE,
         WAITING_FOR_CONVERGENCE,
-        // 首次低协方差只代表候选位置，先寻找有足够前方净空的朝向。
-        WAITING_FOR_TRANSLATION_CANDIDATE,
-        // 使用 odom 测量实际平移距离，禁止按速度乘时间估算。
-        TRANSLATING_FOR_VALIDATION,
-        // 平移开始前会清除旧 AMCL 证据；本状态收集平移及后续安全旋转产生的新样本。
-        WAITING_FOR_SECOND_LOCALIZATION,
-        // 已获得验证周期的低协方差证据；静止后只确认结果仍然新鲜。
+        WAITING_FOR_MAP_TO_ODOM_TRANSFORM,
         WAITING_FOR_SETTLE,
         SUCCEEDED,
         FAILED,
         STOPPED
     };
 
-    void wait_for_service();
+    void wait_for_global_localization_service();
     void request_global_localization();
-    void check_convergence();
-    void exploration_tick();
-    void begin_translation_candidate();
-    void translation_candidate_tick();
-    void start_translation();
-    void translation_tick();
-    void resume_translation_candidate();
-    void begin_second_localization();
-    void check_second_localization();
+    void wait_for_scan_match();
+    void publish_matched_initial_pose();
+    void begin_nomotion_updates();
+    void wait_for_nomotion_update_service();
+    void no_motion_update_tick();
+    void check_map_to_odom_transform();
     void begin_settling();
     void check_settled_localization();
+    bool amcl_matches_scan_map(std::string & reason) const;
+    bool retry_matched_initial_pose(const std::string & reason);
+    std::optional<PlanarTransform> base_from_scan_transform() const;
     void finish_success();
     void finish_failure(const std::string & reason);
-    void publish_angular_velocity();
-    void publish_linear_velocity();
-    void publish_zero_velocity();
     bool localization_timeout_expired() const;
-    bool odometry_is_current(const rclcpp::Time & now) const;
     void cancel_timer(rclcpp::TimerBase::SharedPtr & timer);
-
-    struct OdometrySample
-    {
-        double x;
-        double y;
-        builtin_interfaces::msg::Time stamp;
-    };
 
     rclcpp::Node * node_;
     PatrolConfig config_;
     LocalizationMonitor * monitor_;
+    ScanMapMatcher * scan_map_matcher_;
+    InitialPosePublisher * initial_pose_publisher_;
     CompletionCallback on_complete_;
 
-    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr
-        global_localization_client_;
-    rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr
-        localization_cmd_vel_publisher_;
-    rclcpp::TimerBase::SharedPtr service_timer_;
-    rclcpp::TimerBase::SharedPtr convergence_timer_;
-    rclcpp::TimerBase::SharedPtr exploration_timer_;
-    rclcpp::TimerBase::SharedPtr translation_candidate_timer_;
-    rclcpp::TimerBase::SharedPtr translation_timer_;
-    rclcpp::TimerBase::SharedPtr second_localization_timer_;
+    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr global_localization_client_;
+    rclcpp::Client<std_srvs::srv::Empty>::SharedPtr nomotion_update_client_;
+    // Buffer 与 Listener 仅观察 TF；不创建独立线程，由 Node 的执行器处理订阅回调。
+    std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+    rclcpp::TimerBase::SharedPtr global_service_timer_;
+    rclcpp::TimerBase::SharedPtr scan_match_timer_;
+    rclcpp::TimerBase::SharedPtr nomotion_service_timer_;
+    rclcpp::TimerBase::SharedPtr nomotion_update_timer_;
+    rclcpp::TimerBase::SharedPtr transform_timer_;
     rclcpp::TimerBase::SharedPtr settle_timer_;
 
     State state_{State::IDLE};
+    bool nomotion_request_in_flight_{false};
+    // 只有全局重定位之后至少一次服务响应成功，AMCL 样本才属于本轮无运动定位证据。
+    bool nomotion_update_confirmed_{false};
+    std::optional<PlanarTransform> matched_initial_pose_;
+    int matched_initial_pose_retry_count_{0};
     std::chrono::steady_clock::time_point started_at_;
-    std::chrono::steady_clock::time_point exploration_started_at_;
-    std::chrono::steady_clock::time_point translation_started_at_;
     std::chrono::steady_clock::time_point settle_started_at_;
-    std::optional<OdometrySample> latest_odometry_;
-    // 未进入平移状态前不存在起点，optional 避免伪造一个无时间戳的 odom 样本。
-    std::optional<OdometrySample> translation_start_;
 };
 
 }  // namespace auto_patrol

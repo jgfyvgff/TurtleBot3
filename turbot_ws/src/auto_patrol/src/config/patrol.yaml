@@ -5,24 +5,40 @@ auto_patrol:
     goal_frame: map
     amcl_pose_topic: /amcl_pose
     scan_topic: /scan
-    odom_topic: /odom
+    # map_server 的静态地图和 base_footprint -> scan TF 用于独立检查真实几何关系。
+    localization_map_topic: /map
+    localization_base_frame: base_footprint
 
-    # 自动全局重定位：请求 AMCL 后低速旋转获取不同方向的激光观测。
+    # 自动全局重定位不发布 /cmd_vel；AMCL 服务使用当前静止的 LaserScan 更新粒子滤波器。
     automatic_global_localization: true
     localization_timeout_sec: 130.0
     localization_position_variance_threshold: 0.25
     localization_yaw_variance_threshold: 0.10
-    localization_exploration_enabled: true
-    localization_cmd_vel_topic: /cmd_vel_nav
-    localization_exploration_angular_speed: 0.40
-    localization_exploration_max_duration_sec: 150.0
-    # 起步净空要求为本值加平移距离；平移中仍持续以本值作为紧急停止下限。
-    localization_exploration_linear_speed: 0.06
-    localization_exploration_translation_distance: 0.25
-    localization_exploration_translation_timeout_sec: 8.0
-    localization_exploration_min_front_clearance: 0.45
-    localization_exploration_front_sector_half_angle: 0.35
+    localization_global_localization_service: /reinitialize_global_localization
+    localization_nomotion_update_service: /request_nomotion_update
+    localization_nomotion_update_period_sec: 0.5
+    localization_odom_frame: odom
     localization_settle_duration_sec: 1.0
+
+    # 评分同时检查障碍端点和激光束中段是否保持自由；中段穿过静态墙体的候选会受惩罚。
+    # 若最优候选与另一空间分离候选差距不足，节点会拒绝启动，而不会接受低协方差误定位。
+    localization_scan_match_enabled: true
+    localization_scan_match_coarse_step_m: 0.20
+    localization_scan_match_coarse_yaw_step_rad: 0.261799
+    localization_scan_match_refine_step_m: 0.05
+    localization_scan_match_refine_yaw_step_rad: 0.034907
+    localization_scan_match_max_beams: 90
+    localization_scan_match_max_range_m: 3.0
+    # 仅均匀抽取 12 束检查自由空间，避免每个全图候选遍历全部 90 束而使启动过慢。
+    localization_scan_match_free_space_max_beams: 12
+    localization_scan_match_free_space_penalty_m: 0.25
+    localization_scan_match_max_mean_error_m: 0.10
+    localization_scan_match_min_margin_m: 0.05
+    localization_scan_match_min_separation_m: 0.50
+    localization_scan_match_min_yaw_separation_rad: 0.523599
+    localization_scan_match_pose_tolerance_m: 0.20
+    localization_scan_match_yaw_tolerance_rad: 0.20
+    localization_scan_match_max_initial_pose_retries: 1
 
     # 两张 costmap 均清空后，等待当前 /scan 重新生成障碍与膨胀层。
     costmap_clear_timeout_sec: 5.0

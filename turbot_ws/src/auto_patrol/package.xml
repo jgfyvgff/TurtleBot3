@@ -19,6 +19,8 @@
   <depend>sensor_msgs</depend>
   <depend>builtin_interfaces</depend>
   <depend>std_srvs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
 
   <!-- Launch 文件运行时需要的 Python 和 ROS2 组件。 -->
   <exec_depend>ament_index_python</exec_depend>

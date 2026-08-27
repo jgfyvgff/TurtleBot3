@@ -26,8 +26,24 @@ InitialPosePublisher::~InitialPosePublisher()
 
 void InitialPosePublisher::start(CompletionCallback on_complete)
 {
+    start(
+        config_.initial_pose_x,
+        config_.initial_pose_y,
+        config_.initial_pose_yaw,
+        std::move(on_complete));
+}
+
+void InitialPosePublisher::start(
+    double x,
+    double y,
+    double yaw,
+    CompletionCallback on_complete)
+{
     stop();
     on_complete_ = std::move(on_complete);
+    target_x_ = x;
+    target_y_ = y;
+    target_yaw_ = yaw;
     published_count_ = 0;
     running_ = true;
 
@@ -73,9 +89,9 @@ void InitialPosePublisher::publish_once()
     message.header.frame_id = config_.goal_frame;
     message.header.stamp = pose_utils::to_message_time(node_->now());
     message.pose.pose = pose_utils::make_pose(
-        config_.initial_pose_x,
-        config_.initial_pose_y,
-        config_.initial_pose_yaw);
+        target_x_,
+        target_y_,
+        target_yaw_);
     message.pose.covariance[0] = 0.10;
     message.pose.covariance[7] = 0.10;
     message.pose.covariance[35] = 0.065;
@@ -87,9 +103,9 @@ void InitialPosePublisher::publish_once()
         "Published initial pose %d/%d: x=%.3f, y=%.3f, yaw=%.3f.",
         published_count_,
         config_.initial_pose_publish_count,
-        config_.initial_pose_x,
-        config_.initial_pose_y,
-        config_.initial_pose_yaw);
+        target_x_,
+        target_y_,
+        target_yaw_);
 }
 
 void InitialPosePublisher::schedule_wait()

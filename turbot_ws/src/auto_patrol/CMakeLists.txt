@@ -14,12 +14,14 @@ find_package(nav_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_library(auto_patrol_core SHARED
   src/parameter_loader.cpp
   src/pose_utils.cpp
-  src/localization_safety.cpp
   src/localization_monitor.cpp
+  src/scan_map_matcher.cpp
   src/localization_bootstrapper.cpp
   src/costmap_cleaner.cpp
   src/initial_pose_publisher.cpp
@@ -43,6 +45,8 @@ ament_target_dependencies(
   "sensor_msgs"
   "builtin_interfaces"
   "std_srvs"
+  "tf2"
+  "tf2_ros"
 )
 
 add_executable(auto_patrol_node
@@ -65,6 +69,8 @@ ament_target_dependencies(
   "sensor_msgs"
   "builtin_interfaces"
   "std_srvs"
+  "tf2"
+  "tf2_ros"
 )
 
 install(
@@ -127,6 +133,8 @@ if(BUILD_TESTING)
     "sensor_msgs"
     "builtin_interfaces"
     "std_srvs"
+    "tf2"
+    "tf2_ros"
   )
 endif()
 

@@ -3,9 +3,13 @@
 #include <chrono>
 #include <cmath>
 #include <exception>
+#include <memory>
+#include <sstream>
 #include <utility>
 
-#include "auto_patrol/localization_safety.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+#include "tf2/time.h"
+
 #include "auto_patrol/pose_utils.hpp"
 
 using namespace std::chrono_literals;
@@ -17,20 +21,27 @@ LocalizationBootstrapper::LocalizationBootstrapper(
     rclcpp::Node & node,
     PatrolConfig config,
     LocalizationMonitor & monitor,
+    ScanMapMatcher & scan_map_matcher,
+    InitialPosePublisher & initial_pose_publisher,
     CompletionCallback on_complete)
     : node_(&node),
       config_(std::move(config)),
       monitor_(&monitor),
+      scan_map_matcher_(&scan_map_matcher),
+      initial_pose_publisher_(&initial_pose_publisher),
       on_complete_(std::move(on_complete))
 {
     global_localization_client_ = node_->create_client<std_srvs::srv::Empty>(
-        "/reinitialize_global_localization");
-    if (config_.localization_exploration_enabled) {
-        localization_cmd_vel_publisher_ =
-            node_->create_publisher<geometry_msgs::msg::Twist>(
-            config_.localization_cmd_vel_topic,
-            rclcpp::QoS(10));
-    }
+        config_.localization_global_localization_service);
+    nomotion_update_client_ = node_->create_client<std_srvs::srv::Empty>(
+        config_.localization_nomotion_update_service);
+
+    // 监听器不自行 spin，避免和 AutoPatrolNode 的执行器竞争；生命周期由本组件统一管理。
+    tf_buffer_ = std::make_unique<tf2_ros::Buffer>(node_->get_clock());
+    tf_listener_ = std::make_unique<tf2_ros::TransformListener>(
+        *tf_buffer_,
+        node_,
+        false);
 }
 
 LocalizationBootstrapper::~LocalizationBootstrapper()
@@ -44,10 +55,30 @@ void LocalizationBootstrapper::start()
         return;
     }
 
-    state_ = State::WAITING_FOR_GLOBAL_LOCALIZATION_SERVICE;
+    nomotion_update_confirmed_ = false;
+    matched_initial_pose_.reset();
+    matched_initial_pose_retry_count_ = 0;
     started_at_ = std::chrono::steady_clock::now();
-    service_timer_ = node_->create_wall_timer(500ms, [this]() {
-        wait_for_service();
+
+    // 扫描匹配本身就是全局搜索。先让 AMCL 随机散布粒子会制造一个短暂、错误的
+    // map -> odom，且不会为匹配器带来额外信息，因此这里直接使用静态地图和 LaserScan。
+    if (config_.localization_scan_match_enabled) {
+        monitor_->reset_for_relocalization();
+        state_ = State::WAITING_FOR_SCAN_MATCH;
+        scan_match_timer_ = node_->create_wall_timer(1s, [this]() {
+            wait_for_scan_match();
+        });
+        RCLCPP_INFO(
+            node_->get_logger(),
+            "Starting independent scan-to-map global localization without startup motion.");
+        wait_for_scan_match();
+        return;
+    }
+
+    // 关闭扫描匹配时保留原有 AMCL 全局定位路径，便于在不具备静态地图输入的部署中兼容。
+    state_ = State::WAITING_FOR_GLOBAL_LOCALIZATION_SERVICE;
+    global_service_timer_ = node_->create_wall_timer(500ms, [this]() {
+        wait_for_global_localization_service();
     });
 }
 
@@ -58,47 +89,30 @@ void LocalizationBootstrapper::stop()
     }
 
     state_ = State::STOPPED;
-    cancel_timer(service_timer_);
-    cancel_timer(convergence_timer_);
-    cancel_timer(exploration_timer_);
-    cancel_timer(translation_candidate_timer_);
-    cancel_timer(translation_timer_);
-    cancel_timer(second_localization_timer_);
+    nomotion_request_in_flight_ = false;
+    nomotion_update_confirmed_ = false;
+    matched_initial_pose_.reset();
+    cancel_timer(global_service_timer_);
+    cancel_timer(scan_match_timer_);
+    cancel_timer(nomotion_service_timer_);
+    cancel_timer(nomotion_update_timer_);
+    cancel_timer(transform_timer_);
     cancel_timer(settle_timer_);
-    publish_zero_velocity();
+    if (initial_pose_publisher_) {
+        initial_pose_publisher_->stop();
+    }
     on_complete_ = {};
 }
 
-void LocalizationBootstrapper::update_odometry(
-    const nav_msgs::msg::Odometry & message,
-    const rclcpp::Time & now)
-{
-    const auto & position = message.pose.pose.position;
-    if (!pose_utils::timestamp_is_current(
-            message.header.stamp,
-            now,
-            config_.max_message_age_sec,
-            config_.future_message_tolerance_sec) ||
-        !std::isfinite(position.x) || !std::isfinite(position.y))
-    {
-        latest_odometry_.reset();
-        return;
-    }
-
-    latest_odometry_ = OdometrySample{
-        position.x,
-        position.y,
-        message.header.stamp};
-}
-
-void LocalizationBootstrapper::wait_for_service()
+void LocalizationBootstrapper::wait_for_global_localization_service()
 {
     if (state_ != State::WAITING_FOR_GLOBAL_LOCALIZATION_SERVICE) {
         return;
     }
 
     if (localization_timeout_expired()) {
-        finish_failure("Timed out waiting for /reinitialize_global_localization.");
+        finish_failure(
+            "Timed out waiting for AMCL global localization service.");
         return;
     }
 
@@ -107,11 +121,12 @@ void LocalizationBootstrapper::wait_for_service()
             node_->get_logger(),
             *node_->get_clock(),
             5000,
-            "Waiting for AMCL global localization service...");
+            "Waiting for AMCL global localization service %s...",
+            config_.localization_global_localization_service.c_str());
         return;
     }
 
-    cancel_timer(service_timer_);
+    cancel_timer(global_service_timer_);
     request_global_localization();
 }
 
@@ -121,10 +136,10 @@ void LocalizationBootstrapper::request_global_localization()
         return;
     }
 
-    // 服务会重新分布粒子，服务调用前的稳定样本不能用于新的定位周期。
+    // 服务会重新分布粒子，因此服务调用前的 scan、AMCL 和稳定计数不能继续作为证据。
     monitor_->reset_for_relocalization();
-    latest_odometry_.reset();
-    translation_start_.reset();
+    nomotion_update_confirmed_ = false;
+    matched_initial_pose_.reset();
     state_ = State::REQUESTING_GLOBAL_LOCALIZATION;
     auto request = std::make_shared<std_srvs::srv::Empty::Request>();
     global_localization_client_->async_send_request(
@@ -143,275 +158,288 @@ void LocalizationBootstrapper::request_global_localization()
                 return;
             }
 
-            if (config_.localization_exploration_enabled) {
-                state_ = State::EXPLORING;
-                exploration_started_at_ = std::chrono::steady_clock::now();
-                exploration_timer_ = node_->create_wall_timer(500ms, [this]() {
-                    exploration_tick();
-                });
-                RCLCPP_INFO(
-                    node_->get_logger(),
-                    "AMCL global localization requested; starting automatic exploration.");
-                return;
-            }
-
-            state_ = State::WAITING_FOR_CONVERGENCE;
-            convergence_timer_ = node_->create_wall_timer(500ms, [this]() {
-                check_convergence();
-            });
-            RCLCPP_INFO(
-                node_->get_logger(),
-                "AMCL global localization requested; waiting for convergence.");
+            begin_nomotion_updates();
         });
 }
 
-void LocalizationBootstrapper::check_convergence()
+void LocalizationBootstrapper::wait_for_scan_match()
+{
+    if (state_ != State::WAITING_FOR_SCAN_MATCH) {
+        return;
+    }
+
+    if (localization_timeout_expired()) {
+        finish_failure("Timed out waiting for an unambiguous scan-to-map localization.");
+        return;
+    }
+
+    if (!scan_map_matcher_->has_map()) {
+        RCLCPP_INFO_THROTTLE(
+            node_->get_logger(),
+            *node_->get_clock(),
+            5000,
+            "Waiting for static map on %s...",
+            config_.localization_map_topic.c_str());
+        return;
+    }
+    if (!monitor_->scan_is_current(node_->now())) {
+        RCLCPP_INFO_THROTTLE(
+            node_->get_logger(),
+            *node_->get_clock(),
+            5000,
+            "Waiting for a current LaserScan before scan-to-map localization...");
+        return;
+    }
+
+    const auto base_from_scan = base_from_scan_transform();
+    if (!base_from_scan.has_value()) {
+        RCLCPP_INFO_THROTTLE(
+            node_->get_logger(),
+            *node_->get_clock(),
+            5000,
+            "Waiting for %s -> %s TF before scan-to-map localization...",
+            config_.localization_base_frame.c_str(),
+            scan_map_matcher_->scan_frame_id().c_str());
+        return;
+    }
+
+    const ScanMatchResult result = scan_map_matcher_->find_global_match(
+        *base_from_scan);
+    if (!result.map_and_scan_ready) {
+        RCLCPP_INFO_THROTTLE(
+            node_->get_logger(),
+            *node_->get_clock(),
+            5000,
+            "Waiting for usable obstacle endpoints in LaserScan...");
+        return;
+    }
+    if (!result.accepted) {
+        if (result.runner_up_pose.has_value()) {
+            const double margin_m = result.runner_up_mean_error_m -
+                result.best_mean_error_m;
+            RCLCPP_INFO_THROTTLE(
+                node_->get_logger(),
+                *node_->get_clock(),
+                5000,
+                "Scan-to-map candidate rejected: best [x=%.3f, y=%.3f, yaw=%.3f rad, "
+                "total=%.3f m, endpoint=%.3f m, free-space=%.3f m], "
+                "runner-up [x=%.3f, y=%.3f, yaw=%.3f rad, total=%.3f m, "
+                "endpoint=%.3f m, free-space=%.3f m], margin=%.3f m "
+                "(required %.3f m), separation=%.3f m / %.3f rad.",
+                result.best_pose.x,
+                result.best_pose.y,
+                result.best_pose.yaw,
+                result.best_mean_error_m,
+                result.best_endpoint_mean_error_m,
+                result.best_free_space_mean_penalty_m,
+                result.runner_up_pose->x,
+                result.runner_up_pose->y,
+                result.runner_up_pose->yaw,
+                result.runner_up_mean_error_m,
+                result.runner_up_endpoint_mean_error_m,
+                result.runner_up_free_space_mean_penalty_m,
+                margin_m,
+                config_.localization_scan_match_min_margin_m,
+                result.runner_up_position_distance_m,
+                result.runner_up_yaw_difference_rad);
+        } else {
+            RCLCPP_INFO_THROTTLE(
+                node_->get_logger(),
+                *node_->get_clock(),
+                5000,
+                "Scan-to-map candidate rejected: best [x=%.3f, y=%.3f, yaw=%.3f rad, "
+                "total=%.3f m, endpoint=%.3f m, free-space=%.3f m]; no spatially "
+                "separated runner-up was found.",
+                result.best_pose.x,
+                result.best_pose.y,
+                result.best_pose.yaw,
+                result.best_mean_error_m,
+                result.best_endpoint_mean_error_m,
+                result.best_free_space_mean_penalty_m);
+        }
+        return;
+    }
+
+    matched_initial_pose_ = result.best_pose;
+    matched_initial_pose_retry_count_ = 0;
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "Scan-to-map candidate accepted: x=%.3f, y=%.3f, yaw=%.3f rad, "
+        "total=%.3f m, endpoint=%.3f m, free-space=%.3f m.",
+        result.best_pose.x,
+        result.best_pose.y,
+        result.best_pose.yaw,
+        result.best_mean_error_m,
+        result.best_endpoint_mean_error_m,
+        result.best_free_space_mean_penalty_m);
+    publish_matched_initial_pose();
+}
+
+void LocalizationBootstrapper::publish_matched_initial_pose()
+{
+    if (!matched_initial_pose_.has_value() || !initial_pose_publisher_) {
+        finish_failure("Scan-to-map localization did not provide an initial pose.");
+        return;
+    }
+
+    cancel_timer(scan_match_timer_);
+    cancel_timer(nomotion_service_timer_);
+    cancel_timer(nomotion_update_timer_);
+    cancel_timer(transform_timer_);
+    cancel_timer(settle_timer_);
+    nomotion_request_in_flight_ = false;
+    nomotion_update_confirmed_ = false;
+    // 每次重发 /initialpose 都重新建立 AMCL 证据窗口，防止复用纠正前的错误局部模式。
+    monitor_->reset_for_relocalization();
+    state_ = State::PUBLISHING_MATCHED_INITIAL_POSE;
+    initial_pose_publisher_->start(
+        matched_initial_pose_->x,
+        matched_initial_pose_->y,
+        matched_initial_pose_->yaw,
+        [this]() {
+            if (state_ != State::PUBLISHING_MATCHED_INITIAL_POSE) {
+                return;
+            }
+            begin_nomotion_updates();
+        });
+}
+
+void LocalizationBootstrapper::begin_nomotion_updates()
+{
+    if (state_ != State::PUBLISHING_MATCHED_INITIAL_POSE &&
+        state_ != State::REQUESTING_GLOBAL_LOCALIZATION)
+    {
+        return;
+    }
+
+    state_ = State::WAITING_FOR_NOMOTION_UPDATE_SERVICE;
+    nomotion_service_timer_ = node_->create_wall_timer(500ms, [this]() {
+        wait_for_nomotion_update_service();
+    });
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "Waiting for AMCL no-motion update service after localization bootstrap.");
+}
+
+void LocalizationBootstrapper::wait_for_nomotion_update_service()
+{
+    if (state_ != State::WAITING_FOR_NOMOTION_UPDATE_SERVICE) {
+        return;
+    }
+
+    if (localization_timeout_expired()) {
+        finish_failure("Timed out waiting for AMCL no-motion update service.");
+        return;
+    }
+
+    if (!nomotion_update_client_->service_is_ready()) {
+        RCLCPP_INFO_THROTTLE(
+            node_->get_logger(),
+            *node_->get_clock(),
+            5000,
+            "Waiting for AMCL no-motion update service...");
+        return;
+    }
+
+    cancel_timer(nomotion_service_timer_);
+    state_ = State::WAITING_FOR_CONVERGENCE;
+    const auto period = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::duration<double>(config_.localization_nomotion_update_period_sec));
+    nomotion_update_timer_ = node_->create_wall_timer(period, [this]() {
+        no_motion_update_tick();
+    });
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "AMCL no-motion update service is ready; requesting fresh localization evidence.");
+    no_motion_update_tick();
+}
+
+void LocalizationBootstrapper::no_motion_update_tick()
 {
     if (state_ != State::WAITING_FOR_CONVERGENCE) {
         return;
     }
 
     if (localization_timeout_expired()) {
-        finish_failure("AMCL localization did not converge before timeout.");
+        finish_failure("AMCL no-motion localization did not converge before timeout.");
         return;
     }
 
-    if (!monitor_->is_ready(node_->now())) {
-        RCLCPP_INFO_THROTTLE(
+    if (nomotion_update_confirmed_ && monitor_->is_ready(node_->now())) {
+        std::string reason;
+        if (!amcl_matches_scan_map(reason)) {
+            retry_matched_initial_pose(reason);
+            return;
+        }
+
+        cancel_timer(nomotion_update_timer_);
+        state_ = State::WAITING_FOR_MAP_TO_ODOM_TRANSFORM;
+        transform_timer_ = node_->create_wall_timer(500ms, [this]() {
+            check_map_to_odom_transform();
+        });
+        RCLCPP_INFO(
             node_->get_logger(),
-            *node_->get_clock(),
-            5000,
-            "Waiting for AMCL pose stability and covariance confidence...");
+            "AMCL agrees with the independent scan-map pose; verifying %s -> %s.",
+            config_.goal_frame.c_str(),
+            config_.localization_odom_frame.c_str());
+        check_map_to_odom_transform();
         return;
     }
 
-    finish_success();
+    if (nomotion_request_in_flight_) {
+        return;
+    }
+
+    nomotion_request_in_flight_ = true;
+    auto request = std::make_shared<std_srvs::srv::Empty::Request>();
+    nomotion_update_client_->async_send_request(
+        request,
+        [this](rclcpp::Client<std_srvs::srv::Empty>::SharedFuture future) {
+            if (state_ != State::WAITING_FOR_CONVERGENCE) {
+                return;
+            }
+
+            nomotion_request_in_flight_ = false;
+            try {
+                (void)future.get();
+                nomotion_update_confirmed_ = true;
+            } catch (const std::exception & exception) {
+                finish_failure(
+                    std::string("AMCL no-motion update failed: ") +
+                    exception.what());
+            }
+        });
+
+    RCLCPP_INFO_THROTTLE(
+        node_->get_logger(),
+        *node_->get_clock(),
+        5000,
+        "Waiting for fresh, stable AMCL samples from no-motion updates...");
 }
 
-void LocalizationBootstrapper::exploration_tick()
+void LocalizationBootstrapper::check_map_to_odom_transform()
 {
-    if (state_ != State::EXPLORING) {
+    if (state_ != State::WAITING_FOR_MAP_TO_ODOM_TRANSFORM) {
         return;
     }
 
     if (localization_timeout_expired()) {
-        finish_failure("AMCL localization did not converge before timeout.");
+        finish_failure("AMCL reported confidence but map-to-odom TF was unavailable.");
         return;
     }
 
-    if (monitor_->relocalization_is_ready(node_->now())) {
-        begin_translation_candidate();
-        return;
-    }
-
-    const auto elapsed = std::chrono::steady_clock::now() -
-        exploration_started_at_;
-    if (elapsed > std::chrono::duration<double>(
-            config_.localization_exploration_max_duration_sec))
+    if (!tf_buffer_->canTransform(
+            config_.goal_frame,
+            config_.localization_odom_frame,
+            tf2::TimePointZero))
     {
-        finish_failure("AMCL localization exploration did not reach confidence.");
-        return;
-    }
-
-    publish_angular_velocity();
-}
-
-void LocalizationBootstrapper::begin_translation_candidate()
-{
-    if (state_ != State::EXPLORING) {
-        return;
-    }
-
-    // 第一次收敛只作为候选。先停下旋转，再寻找有前方净空的验证方向。
-    cancel_timer(exploration_timer_);
-    publish_zero_velocity();
-    state_ = State::WAITING_FOR_TRANSLATION_CANDIDATE;
-    translation_candidate_timer_ = node_->create_wall_timer(200ms, [this]() {
-        translation_candidate_tick();
-    });
-    RCLCPP_INFO(
-        node_->get_logger(),
-        "AMCL confidence reached; checking front clearance for translation validation.");
-}
-
-void LocalizationBootstrapper::translation_candidate_tick()
-{
-    if (state_ != State::WAITING_FOR_TRANSLATION_CANDIDATE) {
-        return;
-    }
-
-    if (localization_timeout_expired()) {
-        finish_failure("AMCL localization validation did not finish before timeout.");
-        return;
-    }
-
-    if (!monitor_->relocalization_is_ready(node_->now())) {
-        // 置信度回落时继续旋转获取新观测，但绝不在低置信度状态下前进。
-        publish_angular_velocity();
-        return;
-    }
-
-    // 起步时必须保证完整验证路径后仍保留最小安全净空，不能只检查当前位置。
-    const double required_start_clearance =
-        config_.localization_exploration_min_front_clearance +
-        config_.localization_exploration_translation_distance;
-    if (!monitor_->front_clearance_is_safe(
-            node_->now(),
-            required_start_clearance,
-            config_.localization_exploration_front_sector_half_angle))
-    {
-        // 找不到安全正前方时只允许旋转，避免把定位验证变成碰撞风险。
-        publish_angular_velocity();
         RCLCPP_INFO_THROTTLE(
             node_->get_logger(),
             *node_->get_clock(),
             5000,
-            "Waiting for a front LaserScan sector with safe translation clearance...");
-        return;
-    }
-
-    if (!odometry_is_current(node_->now())) {
-        publish_zero_velocity();
-        RCLCPP_INFO_THROTTLE(
-            node_->get_logger(),
-            *node_->get_clock(),
-            5000,
-            "Waiting for current odometry before localization validation.");
-        return;
-    }
-
-    start_translation();
-}
-
-void LocalizationBootstrapper::start_translation()
-{
-    if (state_ != State::WAITING_FOR_TRANSLATION_CANDIDATE ||
-        !latest_odometry_.has_value())
-    {
-        return;
-    }
-
-    // 从此刻起的 AMCL 样本才属于主动验证证据；LaserScan 仍保留以持续检查净空。
-    monitor_->begin_translation_validation();
-    cancel_timer(translation_candidate_timer_);
-    translation_start_ = *latest_odometry_;
-    translation_started_at_ = std::chrono::steady_clock::now();
-    state_ = State::TRANSLATING_FOR_VALIDATION;
-    translation_timer_ = node_->create_wall_timer(100ms, [this]() {
-        translation_tick();
-    });
-    RCLCPP_INFO(
-        node_->get_logger(),
-        "Starting %.3f m localization validation translation at %.3f m/s.",
-        config_.localization_exploration_translation_distance,
-        config_.localization_exploration_linear_speed);
-    publish_linear_velocity();
-}
-
-void LocalizationBootstrapper::translation_tick()
-{
-    if (state_ != State::TRANSLATING_FOR_VALIDATION) {
-        return;
-    }
-
-    if (localization_timeout_expired()) {
-        finish_failure("AMCL localization validation did not finish before timeout.");
-        return;
-    }
-
-    if (!monitor_->front_clearance_is_safe(
-            node_->now(),
-            config_.localization_exploration_min_front_clearance,
-            config_.localization_exploration_front_sector_half_angle))
-    {
-        // 动态障碍或定位误差可能使净空在平移中下降；停止后换方向，不带风险继续前进。
-        resume_translation_candidate();
-        return;
-    }
-
-    if (!odometry_is_current(node_->now()) || !latest_odometry_.has_value() ||
-        !translation_start_.has_value())
-    {
-        finish_failure("Stopped localization validation because odometry is stale.");
-        return;
-    }
-
-    const double distance = localization_safety::planar_distance(
-        translation_start_->x,
-        translation_start_->y,
-        latest_odometry_->x,
-        latest_odometry_->y);
-    if (distance >= config_.localization_exploration_translation_distance) {
-        cancel_timer(translation_timer_);
-        publish_zero_velocity();
-        begin_second_localization();
-        return;
-    }
-
-    const auto elapsed = std::chrono::steady_clock::now() - translation_started_at_;
-    if (elapsed > std::chrono::duration<double>(
-            config_.localization_exploration_translation_timeout_sec))
-    {
-        finish_failure("Localization validation translation timed out before reaching its distance.");
-        return;
-    }
-
-    publish_linear_velocity();
-}
-
-void LocalizationBootstrapper::resume_translation_candidate()
-{
-    if (state_ != State::TRANSLATING_FOR_VALIDATION) {
-        return;
-    }
-
-    cancel_timer(translation_timer_);
-    publish_zero_velocity();
-    translation_start_.reset();
-    state_ = State::WAITING_FOR_TRANSLATION_CANDIDATE;
-    translation_candidate_timer_ = node_->create_wall_timer(200ms, [this]() {
-        translation_candidate_tick();
-    });
-    RCLCPP_WARN(
-        node_->get_logger(),
-        "Front clearance became unsafe during validation; rotating to choose a new direction.");
-}
-
-void LocalizationBootstrapper::begin_second_localization()
-{
-    if (state_ != State::TRANSLATING_FOR_VALIDATION) {
-        return;
-    }
-
-    // 不能在平移完成后清空样本：AMCL 常只在运动时更新，平移过程已经产生有效新证据。
-    state_ = State::WAITING_FOR_SECOND_LOCALIZATION;
-    second_localization_timer_ = node_->create_wall_timer(200ms, [this]() {
-        check_second_localization();
-    });
-    RCLCPP_INFO(
-        node_->get_logger(),
-        "Translation validation completed; collecting fresh AMCL evidence.");
-}
-
-void LocalizationBootstrapper::check_second_localization()
-{
-    if (state_ != State::WAITING_FOR_SECOND_LOCALIZATION) {
-        return;
-    }
-
-    if (localization_timeout_expired()) {
-        finish_failure("AMCL did not reconfirm localization after translation.");
-        return;
-    }
-
-    if (!monitor_->relocalization_is_ready(node_->now())) {
-        // 仅原地旋转以触发 update_min_a 对应的 AMCL 更新，不再进行未知位置下的前进。
-        publish_angular_velocity();
-        RCLCPP_INFO_THROTTLE(
-            node_->get_logger(),
-            *node_->get_clock(),
-            5000,
-            "Rotating safely to collect fresh AMCL samples after translation validation...");
+            "Waiting for %s -> %s TF after AMCL convergence...",
+            config_.goal_frame.c_str(),
+            config_.localization_odom_frame.c_str());
         return;
     }
 
@@ -420,18 +448,19 @@ void LocalizationBootstrapper::check_second_localization()
 
 void LocalizationBootstrapper::begin_settling()
 {
-    if (state_ != State::WAITING_FOR_SECOND_LOCALIZATION) {
+    if (state_ != State::WAITING_FOR_MAP_TO_ODOM_TRANSFORM) {
         return;
     }
 
-    // 前一状态已经收集到连续低协方差的新证据；停止后不应要求 AMCL 继续发布位姿。
-    cancel_timer(second_localization_timer_);
-    publish_zero_velocity();
+    cancel_timer(transform_timer_);
     state_ = State::WAITING_FOR_SETTLE;
     settle_started_at_ = std::chrono::steady_clock::now();
     settle_timer_ = node_->create_wall_timer(200ms, [this]() {
         check_settled_localization();
     });
+    RCLCPP_INFO(
+        node_->get_logger(),
+        "AMCL TF is available; keeping the robot stationary for final confirmation.");
 }
 
 void LocalizationBootstrapper::check_settled_localization()
@@ -441,45 +470,155 @@ void LocalizationBootstrapper::check_settled_localization()
     }
 
     if (localization_timeout_expired()) {
-        finish_failure("AMCL localization did not converge before timeout.");
+        finish_failure("AMCL no-motion localization did not finish final confirmation.");
         return;
     }
 
-    const auto settle_elapsed = std::chrono::steady_clock::now() -
-        settle_started_at_;
-    if (settle_elapsed < std::chrono::duration<double>(
-            config_.localization_settle_duration_sec))
+    const auto elapsed = std::chrono::steady_clock::now() - settle_started_at_;
+    if (elapsed < std::chrono::duration<double>(config_.localization_settle_duration_sec)) {
+        return;
+    }
+
+    if (!monitor_->is_ready(node_->now())) {
+        finish_failure("AMCL localization became stale or lost confidence during final confirmation.");
+        return;
+    }
+    std::string reason;
+    if (!amcl_matches_scan_map(reason)) {
+        retry_matched_initial_pose(reason);
+        return;
+    }
+    if (!tf_buffer_->canTransform(
+            config_.goal_frame,
+            config_.localization_odom_frame,
+            tf2::TimePointZero))
     {
+        finish_failure("map-to-odom TF disappeared during final confirmation.");
         return;
     }
 
-    if (monitor_->confidence_is_sufficient(node_->now())) {
-        finish_success();
-        return;
+    finish_success();
+}
+
+bool LocalizationBootstrapper::amcl_matches_scan_map(std::string & reason) const
+{
+    if (!config_.localization_scan_match_enabled) {
+        return true;
+    }
+    if (!matched_initial_pose_.has_value()) {
+        reason = "scan-map initial pose is unavailable";
+        return false;
+    }
+    const auto amcl_pose = monitor_->latest_amcl_pose();
+    const auto base_from_scan = base_from_scan_transform();
+    if (!amcl_pose.has_value() || !base_from_scan.has_value()) {
+        reason = "AMCL pose or base-to-scan TF is unavailable";
+        return false;
     }
 
-    finish_failure("AMCL localization became stale or lost confidence during final confirmation.");
+    const double position_difference = std::hypot(
+        amcl_pose->x - matched_initial_pose_->x,
+        amcl_pose->y - matched_initial_pose_->y);
+    const double yaw_difference = std::abs(pose_utils::angle_difference(
+        amcl_pose->yaw,
+        matched_initial_pose_->yaw));
+    const auto scan_error = scan_map_matcher_->score_pose(
+        PlanarTransform{amcl_pose->x, amcl_pose->y, amcl_pose->yaw},
+        *base_from_scan);
+    if (!scan_error.has_value()) {
+        reason = "scan-map verification data is unavailable";
+        return false;
+    }
+    if (position_difference > config_.localization_scan_match_pose_tolerance_m ||
+        yaw_difference > config_.localization_scan_match_yaw_tolerance_rad ||
+        *scan_error > config_.localization_scan_match_max_mean_error_m)
+    {
+        std::ostringstream stream;
+        stream << "AMCL diverged from scan-map candidate: position="
+               << position_difference << " m, yaw=" << yaw_difference
+               << " rad, scan error=" << *scan_error << " m";
+        reason = stream.str();
+        return false;
+    }
+    return true;
+}
+
+bool LocalizationBootstrapper::retry_matched_initial_pose(const std::string & reason)
+{
+    if (!matched_initial_pose_.has_value()) {
+        finish_failure(reason);
+        return false;
+    }
+    ++matched_initial_pose_retry_count_;
+    if (matched_initial_pose_retry_count_ >
+        config_.localization_scan_match_max_initial_pose_retries)
+    {
+        finish_failure(
+            "AMCL did not agree with independent scan-map localization: " + reason);
+        return false;
+    }
+
+    RCLCPP_WARN(
+        node_->get_logger(),
+        "%s; republishing scan-map initial pose (%d/%d).",
+        reason.c_str(),
+        matched_initial_pose_retry_count_,
+        config_.localization_scan_match_max_initial_pose_retries);
+    publish_matched_initial_pose();
+    return true;
+}
+
+std::optional<PlanarTransform>
+LocalizationBootstrapper::base_from_scan_transform() const
+{
+    const std::string scan_frame = scan_map_matcher_->scan_frame_id();
+    if (scan_frame.empty() || !tf_buffer_->canTransform(
+            config_.localization_base_frame,
+            scan_frame,
+            tf2::TimePointZero))
+    {
+        return std::nullopt;
+    }
+
+    try {
+        const geometry_msgs::msg::TransformStamped transform =
+            tf_buffer_->lookupTransform(
+                config_.localization_base_frame,
+                scan_frame,
+                tf2::TimePointZero);
+        return PlanarTransform{
+            transform.transform.translation.x,
+            transform.transform.translation.y,
+            pose_utils::quaternion_to_yaw(transform.transform.rotation)};
+    } catch (const std::exception &) {
+        return std::nullopt;
+    }
 }
 
 void LocalizationBootstrapper::finish_success()
 {
-    if (state_ != State::WAITING_FOR_CONVERGENCE &&
-        state_ != State::WAITING_FOR_SETTLE)
-    {
+    if (state_ != State::WAITING_FOR_SETTLE) {
         return;
     }
 
     state_ = State::SUCCEEDED;
-    cancel_timer(convergence_timer_);
-    cancel_timer(exploration_timer_);
-    cancel_timer(translation_candidate_timer_);
-    cancel_timer(translation_timer_);
-    cancel_timer(second_localization_timer_);
+    nomotion_request_in_flight_ = false;
+    nomotion_update_confirmed_ = false;
+    cancel_timer(global_service_timer_);
+    cancel_timer(scan_match_timer_);
+    cancel_timer(nomotion_service_timer_);
+    cancel_timer(nomotion_update_timer_);
+    cancel_timer(transform_timer_);
     cancel_timer(settle_timer_);
-    publish_zero_velocity();
-    RCLCPP_INFO(
-        node_->get_logger(),
-        "AMCL automatically localized the robot with translation validation.");
+    if (config_.localization_scan_match_enabled) {
+        RCLCPP_INFO(
+            node_->get_logger(),
+            "AMCL agrees with scan-map localization; startup motion was not commanded.");
+    } else {
+        RCLCPP_INFO(
+            node_->get_logger(),
+            "AMCL no-motion localization completed; startup motion was not commanded.");
+    }
     auto callback = std::move(on_complete_);
     if (callback) {
         callback(true);
@@ -495,14 +634,17 @@ void LocalizationBootstrapper::finish_failure(const std::string & reason)
     }
 
     state_ = State::FAILED;
-    cancel_timer(service_timer_);
-    cancel_timer(convergence_timer_);
-    cancel_timer(exploration_timer_);
-    cancel_timer(translation_candidate_timer_);
-    cancel_timer(translation_timer_);
-    cancel_timer(second_localization_timer_);
+    nomotion_request_in_flight_ = false;
+    nomotion_update_confirmed_ = false;
+    cancel_timer(global_service_timer_);
+    cancel_timer(scan_match_timer_);
+    cancel_timer(nomotion_service_timer_);
+    cancel_timer(nomotion_update_timer_);
+    cancel_timer(transform_timer_);
     cancel_timer(settle_timer_);
-    publish_zero_velocity();
+    if (initial_pose_publisher_) {
+        initial_pose_publisher_->stop();
+    }
     RCLCPP_ERROR(node_->get_logger(), "%s", reason.c_str());
     auto callback = std::move(on_complete_);
     if (callback) {
@@ -510,49 +652,10 @@ void LocalizationBootstrapper::finish_failure(const std::string & reason)
     }
 }
 
-void LocalizationBootstrapper::publish_angular_velocity()
-{
-    if (!localization_cmd_vel_publisher_) {
-        return;
-    }
-
-    geometry_msgs::msg::Twist command;
-    // 旋转优先获得不同朝向的扫描；线速度始终为零，避免未知位置下盲目前进。
-    command.angular.z = config_.localization_exploration_angular_speed;
-    localization_cmd_vel_publisher_->publish(command);
-}
-
-void LocalizationBootstrapper::publish_linear_velocity()
-{
-    if (!localization_cmd_vel_publisher_) {
-        return;
-    }
-
-    geometry_msgs::msg::Twist command;
-    command.linear.x = config_.localization_exploration_linear_speed;
-    localization_cmd_vel_publisher_->publish(command);
-}
-
-void LocalizationBootstrapper::publish_zero_velocity()
-{
-    if (localization_cmd_vel_publisher_) {
-        localization_cmd_vel_publisher_->publish(geometry_msgs::msg::Twist{});
-    }
-}
-
 bool LocalizationBootstrapper::localization_timeout_expired() const
 {
     const auto elapsed = std::chrono::steady_clock::now() - started_at_;
     return elapsed > std::chrono::duration<double>(config_.localization_timeout_sec);
-}
-
-bool LocalizationBootstrapper::odometry_is_current(const rclcpp::Time & now) const
-{
-    return latest_odometry_.has_value() && pose_utils::timestamp_is_current(
-        latest_odometry_->stamp,
-        now,
-        config_.max_message_age_sec,
-        config_.future_message_tolerance_sec);
 }
 
 void LocalizationBootstrapper::cancel_timer(

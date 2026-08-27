@@ -2,12 +2,16 @@
 
 > ROS 2 Humble | `turtlebot3_world` | Nav2 | 三目标点自主巡检
 
-`auto_patrol` 是一个面向 TurtleBot3 的 ROS2 自动巡航节点。节点默认请求
-Nav2 AMCL 进行全局重定位，在确认传感器和定位状态有效后，依次执行三个
-waypoint。定位阶段会自动通过 `/cmd_vel_nav` 原地旋转，主动获取不同方向的激光
-观测；第一次达到低协方差时不会立刻开始巡检，而是先检查前方 LaserScan 净空、
-开始短距离平移前清空旧 AMCL 证据，保留平移期间的新观测；若样本尚不足，
-仅进行安全原地旋转补足观测，再静止确认定位结果仍有效。
+`auto_patrol` 是一个面向 TurtleBot3 的 ROS2 自动巡航节点。默认定位流程先将当前
+`/scan` 的障碍端点与 `/map` 的静态障碍物做全图几何匹配，只有最优候选误差足够小、
+且明显优于空间分离的其他候选时，才把这个不依赖 AMCL 的位姿发布到 `/initialpose`。
+随后节点调用 AMCL 的 `/request_nomotion_update`，在连续新鲜、低协方差的
+`/amcl_pose` 样本和 `map -> odom` TF 均就绪后，静止确认一次定位结果，再依次执行
+三个 waypoint。
+
+本包不会在启动定位时向 `/cmd_vel` 或 `/cmd_vel_nav` 发布旋转、平移或零速度指令。
+因此不会通过原地自转“制造” AMCL 更新；实际的几何一致性由扫描匹配和 AMCL 二次复核
+共同保证。关闭扫描匹配后，才回退到 AMCL 的 `/reinitialize_global_localization` 服务。
 确认后程序会清理全局和局部代价地图，等待其根据当前扫描重新生成障碍与膨胀层。
 默认流程不要求在 RViz 中手动点击 `2D Pose Estimate`，也不要求预先填写机器人
 出生位置。
@@ -23,7 +27,7 @@ waypoint。定位阶段会自动通过 `/cmd_vel_nav` 原地旋转，主动获�
 | 三个具有空间跨度的目标点 | `patrol.yaml` 中的 `waypoint_1/2/3`；三点均使用 `[x, y, yaw]`（m、m、rad）配置。 |
 | 避开环境障碍物 | 目标通过 Nav2 全局规划、局部 DWB 控制器、代价地图和恢复行为执行，不由巡检节点硬编码路径。 |
 | 无需 RViz 手动发送目标 | `PatrolController` 仅在上一个 `NavigateToPose` 返回 `SUCCEEDED` 后发送下一点。 |
-| 无需手动设置初始位姿 | 默认调用 AMCL `/reinitialize_global_localization`，再进行旋转、短距离平移和二次确认。 |
+| 无需手动设置初始位姿 | 默认全图匹配 `/scan` 与 `/map` 后发布计算出的 `/initialpose`，再由 AMCL 无运动更新确认；不向速度 Topic 发送定位动作。 |
 | 少量命令启动 | `patrol_with_nav2.launch.py` 一次启动 Gazebo 世界、Nav2、RViz 和巡检节点。 |
 | 导航失败 Recovery | Nav2 负责路径无效、局部障碍等恢复；巡检节点对 `ABORTED` 或 `CANCELED` 的目标按 `max_retries` 重试。 |
 | 运动稳定性调节入口 | `nav2_waffle.yaml` 集中保存 DWB 与 `velocity_smoother` 参数。 |
@@ -37,12 +41,12 @@ waypoint。定位阶段会自动通过 `/cmd_vel_nav` 原地旋转，主动获�
 - `PatrolConfig`：声明、读取和校验参数；
 - `pose_utils`：提供无副作用的角度、姿态和时间戳计算；
 - `LocalizationMonitor`：检查 `/scan` 时间戳以及 AMCL 定位稳定性；
-- `localization_safety`：提供前方激光安全判断和 odom 平面距离的纯计算，便于不启动
-  Gazebo 的单元测试；
-- `LocalizationBootstrapper`：调用 `/reinitialize_global_localization`，清除旧定位
-  样本，管理旋转探索、激光安全检查、odom 平移验证、二次确认和超时状态机；
+- `ScanMapMatcher`：保存静态地图和 LaserScan 快照，构造地图障碍距离场并执行粗到细的
+  全图位姿搜索；它不依赖 AMCL，因此能发现“低协方差但点云未对齐”的错误局部模式；
+- `LocalizationBootstrapper`：编排扫描匹配、`/initialpose` 发布、AMCL 无运动更新、
+  匹配结果复核和 `map -> odom` TF 检查，所有等待都由 Timer 驱动；
 - `CostmapCleaner`：异步调用 Nav2 的全局、局部代价地图清理服务，并等待刷新窗口；
-- `InitialPosePublisher`：仅在手动兼容模式下按配置重复发布 `/initialpose`；
+- `InitialPosePublisher`：按固定次数发布扫描匹配或手动兼容模式得到的 `/initialpose`；
 - `PatrolController`：管理 Nav2 Action、waypoint 推进、失败重试和终态。
 
 入口 Node 不直接承担参数校验、姿态计算、传感器稳定判断和 Action 重试，
@@ -108,23 +112,22 @@ origin: [-2.37, -2.38, 0]
 ```text
 等待 Action Server
         ↓
-等待 /reinitialize_global_localization 服务
+等待静态 /map、当前 /scan 和 base_footprint -> scan TF
         ↓
-请求 AMCL 全局重定位
+在全图粗搜索并细化 LaserScan 到静态障碍物的匹配位姿
         ↓
-清除旧 AMCL 稳定样本
+最优误差与次优空间分离候选的误差间隔是否达标？
         ↓
-低速原地旋转探索
+否：继续等待新扫描，超时失败
+是：重复发布计算得到的 /initialpose
         ↓
-连续低协方差 AMCL 候选样本
+清除发布前的 AMCL 样本，等待 /request_nomotion_update 服务
         ↓
-检查前方 LaserScan 扇区净空
+定时请求无运动 AMCL 更新（不发布 Twist）
         ↓
-按 /odom 平移约 0.25 m
+连续新鲜、低协方差的 /amcl_pose，并复核其与扫描匹配结果一致
         ↓
-平移期间保留新 AMCL 证据；不足时安全原地旋转补足样本
-        ↓
-发布零速度并静止确认
+确认 map -> odom TF，保持静止并完成最终确认
         ↓
 清理 global_costmap 与 local_costmap，等待当前扫描刷新
         ↓
@@ -137,22 +140,28 @@ origin: [-2.37, -2.38, 0]
 重试耗尽：失败退出
 ```
 
-程序调用的是 AMCL 的全局重定位服务，而不是向 `/initialpose` 写入一个预先
-配置的坐标。AMCL 会在地图的可行驶区域中初始化粒子，并结合 LaserScan、地图
-和里程计逐渐收敛。由于全局重定位服务本身不会驱动机器人，程序会在定位阶段
-通过 `/cmd_vel_nav` 旋转。探索过程中机器人自身的 yaw 会变化，因此自动全局
-定位累计的是连续低协方差样本，而不是相邻 yaw 不变的样本。
+扫描匹配会把每个有效 LaserScan 端点变换到待评估的 `map -> base_footprint` 位姿，
+并计算端点到静态地图最近障碍物的平均距离。它还会均匀抽取部分激光束，检查从
+真实 LaserScan 原点到端点前约 1.5 个地图栅格的路径是否始终处于已知自由空间；
+若候选要求激光穿过静态墙体或未知区域，就按每束固定惩罚加入总误差。这样可以排除
+“端点看似都贴墙、但中间路径不可能存在”的相似位置。搜索先用较大平移、角度步长
+覆盖全图，再细化误差最低的一组候选；这避免把所有细粒度候选一次性展开。最优误差超过
+`localization_scan_match_max_mean_error_m`，或最优解相对另一空间分离候选的优势小于
+`localization_scan_match_min_margin_m` 时，节点拒绝发布 `/initialpose`，不会凭 AMCL
+低协方差直接启动巡检。
 
-第一次连续低协方差只表示“存在可信候选”，不能排除地图相似区域中的误定位。
-因此程序起步时要求前方扇区每个有效量测都大于“最小安全距离 + 验证平移距离”；
-当前配置为 `0.45 + 0.25 = 0.70 m`。平移中仍以 `0.45 m` 作为紧急停止下限；
-若净空下降，机器人停止后会旋转寻找新的安全验证方向，而不是直接退出。平移距离
-由 `/odom` 实际位置计算，不按速度乘时间估算；扫描无有效量测、里程计过期或平移
-超时时，都会立即发布零速度并以失败终止，绝不带着未完成的验证去导航。
-平移开始前会清除首次候选的 AMCL 样本；平移和后续安全旋转产生的连续低协方差
-样本共同构成二次确认依据。停止后只确认这组结果仍然新鲜且低协方差，不假设
-AMCL 会在机器人静止时继续发布位姿。过期或未来时间戳不会触发导航；收到过期
-AMCL 后，稳定样本计数和置信度会被清零。
+匹配成功后，`InitialPosePublisher` 将计算出的候选重复发布给 AMCL。程序随后周期性
+调用 `/request_nomotion_update`，要求 AMCL 使用当前静态 LaserScan 更新粒子滤波器。
+同一时刻最多保留一个未完成服务请求；AMCL 新样本不仅必须低协方差、时间新鲜和连续
+稳定，还必须在位置、朝向和扫描误差上与扫描匹配候选相符。若 AMCL 又回到不一致的
+局部模式，节点最多按 `localization_scan_match_max_initial_pose_retries` 重发候选，超过
+次数即失败退出。
+
+这不是对任何地图都能从单帧扫描唯一定位的数学保证：完全对称、障碍极少或可见范围
+不足时，即使加入自由空间约束，候选间隔仍会不足，程序应当拒绝而不是错误出发。此时应
+改变起始区域、增加环境特征或使用更可靠的初始位姿来源；不要把
+`localization_scan_match_min_margin_m` 降到小于地图分辨率的数值（例如 `0.003 m`）来
+强行放行。过期或未来时间戳也会清零稳定计数并阻止导航。
 
 二次确认成功后，`CostmapCleaner` 会分别调用
 `/global_costmap/clear_entirely_global_costmap` 和
@@ -171,21 +180,33 @@ AMCL 后，稳定样本计数和置信度会被清零。
 | `goal_frame` | `map` | waypoint 和初始位姿使用的坐标系 |
 | `amcl_pose_topic` | `/amcl_pose` | AMCL 位姿 Topic |
 | `scan_topic` | `/scan` | LaserScan Topic |
-| `odom_topic` | `/odom` | 平移验证使用的里程计 Topic |
-| `automatic_global_localization` | `true` | 是否调用 AMCL 全局重定位服务 |
-| `localization_timeout_sec` | `120.0` | AMCL 服务和定位收敛总超时时间，单位 s |
+| `localization_map_topic` | `/map` | 扫描匹配使用的静态 OccupancyGrid Topic |
+| `localization_base_frame` | `base_footprint` | 输出扫描匹配位姿的机体坐标系；必须存在到 LaserScan frame 的 TF |
+| `automatic_global_localization` | `true` | 是否执行自动定位流程；扫描匹配关闭时才调用 AMCL 全局重定位服务 |
+| `localization_timeout_sec` | `120.0` | 扫描匹配、AMCL 服务和最终确认共享的总超时时间，单位 s |
 | `localization_position_variance_threshold` | `0.25` | x/y 方差上限，单位 m² |
 | `localization_yaw_variance_threshold` | `0.10` | yaw 方差上限，单位 rad² |
-| `localization_exploration_enabled` | `true` | 是否在定位阶段自动旋转探索 |
-| `localization_cmd_vel_topic` | `/cmd_vel_nav` | 定位探索速度输入 Topic |
-| `localization_exploration_angular_speed` | `0.20` | 探索角速度，单位 rad/s，不能为 0 |
-| `localization_exploration_max_duration_sec` | `40.0` | 自动探索最大持续时间，单位 s |
-| `localization_exploration_linear_speed` | `0.06` | 平移验证线速度，单位 m/s，必须大于 0 |
-| `localization_exploration_translation_distance` | `0.25` | 使用 odom 测量的验证距离，单位 m |
-| `localization_exploration_translation_timeout_sec` | `8.0` | 验证平移最大时间，单位 s |
-| `localization_exploration_min_front_clearance` | `0.45` | 前方有效激光必须大于的安全距离，单位 m |
-| `localization_exploration_front_sector_half_angle` | `0.35` | 前方安全检查扇区半角，单位 rad，范围 `(0, pi]` |
-| `localization_settle_duration_sec` | `1.0` | 停止旋转后的 AMCL 最终确认时间，单位 s |
+| `localization_global_localization_service` | `/reinitialize_global_localization` | 请求 AMCL 在全图重新分布粒子的服务名 |
+| `localization_nomotion_update_service` | `/request_nomotion_update` | 请求 AMCL 使用当前静态 LaserScan 更新的服务名 |
+| `localization_nomotion_update_period_sec` | `0.5` | 两次无运动更新请求的最小间隔，单位 s，范围 `[0.05, +inf)` |
+| `localization_odom_frame` | `odom` | 成功前必须存在的 TF 源坐标系；与 `goal_frame` 共同构成 `map -> odom` |
+| `localization_settle_duration_sec` | `1.0` | AMCL 与 TF 就绪后保持静止的最终确认时间，单位 s |
+| `localization_scan_match_enabled` | `true` | 是否启用独立的全图 LaserScan-静态地图匹配；推荐保持启用 |
+| `localization_scan_match_coarse_step_m` | `0.20` | 全图粗搜索平移步长，单位 m；越小越精确但启动计算更慢 |
+| `localization_scan_match_coarse_yaw_step_rad` | `0.261799` | 全图粗搜索朝向步长，单位 rad |
+| `localization_scan_match_refine_step_m` | `0.05` | 候选细化平移步长，单位 m |
+| `localization_scan_match_refine_yaw_step_rad` | `0.034907` | 候选细化朝向步长，单位 rad |
+| `localization_scan_match_max_beams` | `90` | 参与匹配的有效激光端点上限；超过时均匀抽样 |
+| `localization_scan_match_max_range_m` | `3.0` | 参与匹配的最大有效测距，单位 m |
+| `localization_scan_match_free_space_max_beams` | `12` | 均匀抽取并检查束中段自由空间的最大束数，范围 `[3, +inf)`；增大可提高歧义排除能力，但会增加全图搜索时间 |
+| `localization_scan_match_free_space_penalty_m` | `0.25` | 一束激光中段穿过静态占据或未知栅格时加入的平均误差，单位 m；必须为正数 |
+| `localization_scan_match_max_mean_error_m` | `0.10` | 接受候选的最大平均障碍距离，单位 m；不应仅为减少拒绝而随意增大 |
+| `localization_scan_match_min_margin_m` | `0.05` | 最优候选相对空间分离次优候选所需的最小误差优势，单位 m |
+| `localization_scan_match_min_separation_m` | `0.50` | 判断两个位置候选不同的最小平移差，单位 m |
+| `localization_scan_match_min_yaw_separation_rad` | `0.523599` | 判断两个朝向候选不同的最小角度差，单位 rad |
+| `localization_scan_match_pose_tolerance_m` | `0.20` | AMCL 相对匹配候选允许的位置偏差，单位 m |
+| `localization_scan_match_yaw_tolerance_rad` | `0.20` | AMCL 相对匹配候选允许的朝向偏差，单位 rad |
+| `localization_scan_match_max_initial_pose_retries` | `1` | AMCL 与匹配结果不一致时可重发 `/initialpose` 的次数 |
 | `costmap_clear_timeout_sec` | `5.0` | 等待并完成两张 costmap 清理的总超时，单位 s |
 | `costmap_clear_settle_duration_sec` | `2.0` | 清理完成后等待当前扫描刷新 costmap 的时间，单位 s |
 | `global_costmap_clear_service` | `/global_costmap/clear_entirely_global_costmap` | 全局代价地图清理服务 |
@@ -242,7 +263,7 @@ source install/setup.bash
 
 ## 测试
 
-测试不依赖真实机器人、摄像头、LaserScan 发布器或 Nav2 Action Server：
+测试不依赖真实机器人、LaserScan 发布器或 Nav2 Action Server：
 
 ```bash
 cd TurtleBot3/turbot_ws
@@ -251,8 +272,8 @@ colcon test --packages-select auto_patrol
 colcon test-result --verbose
 ```
 
-测试覆盖参数校验、角度转换、时间戳检查、AMCL 稳定样本、主动旋转下的连续
-低协方差样本、过期定位清零、前方净空拒绝策略以及 odom 平面距离计算。
+测试覆盖参数校验、全图 LaserScan-静态地图匹配、无运动服务状态机、角度转换、
+时间戳检查、AMCL 稳定样本、过期定位清零和低协方差门限。
 `CostmapCleaner` 使用本地 Fake 服务验证“双服务均成功才放行”和“服务不可用则
 超时失败”两条契约；Launch 结构测试还会确认根目录地图 YAML 存在且其 `image`
 文件可用。真实 Nav2 与 Gazebo 的端到端效果仍需在下面的集成步骤中验证。
@@ -333,12 +354,20 @@ source install/setup.bash
 ros2 run auto_patrol auto_patrol_node
 ```
 
-上面的默认流程会自动调用：
+默认流程会订阅 `/map`、`/scan` 并向 `/initialpose` 发布扫描匹配得到的候选，随后自动调用：
 
 ```text
-/reinitialize_global_localization
+/request_nomotion_update
 类型：std_srvs/srv/Empty
 ```
+
+`/request_nomotion_update` 是 AMCL 显式提供的无运动更新入口。本包不会把
+`update_min_a`、`update_min_d` 改为零或负数来模拟该行为；保持 AMCL 的正常更新阈值，
+由服务请求一次明确的静止更新更符合其接口语义。
+
+若因调试需要关闭 `localization_scan_match_enabled`，自动模式才会先调用
+`/reinitialize_global_localization`，再执行同样的无运动更新。这条兼容路径不具备
+扫描匹配的错误位置排除能力，不是推荐配置。
 
 可以通过 ROS2 参数覆盖默认航点，例如：
 
@@ -366,20 +395,20 @@ ros2 run auto_patrol auto_patrol_node --ros-args \
 - `PatrolController` 和 `InitialPosePublisher` 的 `stop()` 可重复调用；
 - 组件析构时先取消 Timer 和 Action，再释放相关资源；
 - `LocalizationMonitor` 用 mutex 保护传感器状态、AMCL 样本和稳定计数；
+- `ScanMapMatcher` 用独立 mutex 保护静态地图和扫描快照；距离场和全图搜索在锁外对
+  本地副本执行，不阻塞 ROS2 订阅回调；
 - mutex 不覆盖 Publisher、Action、Timer 等 ROS2 慢速或外部调用；
-- 全局定位服务只请求一次，服务 Future 在组件停止后不会再推进状态机；
-- 每次全局重定位前清除旧 AMCL 样本，收敛必须使用新的传感器数据；
-- 手动初始位姿模式要求连续位姿稳定；自动全局定位允许探索期间的正常旋转，
-  但要求 `/scan`、`/amcl_pose` 新鲜且连续低协方差；
-- 自动探索有最大持续时间；在此时间内没有得到首次低协方差候选时直接失败，避免
-  未验证定位进入导航。成功、失败、总超时、停止和析构路径都会取消 Timer 并发布
-  零速度，避免定位状态机退出后机器人继续旋转或继续前进；
-- 首次候选定位必须经过前方激光安全检查、odom 实测平移和二次稳定样本确认；
-  平移前样本会被明确清除，不能跨越该验证边界复用；
+- 扫描匹配开启时不会请求 AMCL 全局定位服务；关闭时该服务只请求一次，服务 Future
+  在组件停止后不会再推进状态机；
+- 每次发布匹配初始位姿或请求全局重定位前都会清除旧 AMCL 样本，收敛必须使用后续
+  新传感器数据；
+- 自动全局定位定时异步请求 `/request_nomotion_update`，同一时刻最多一个请求在途；
+  成功、失败、总超时、停止和析构路径都会取消 Timer，且定位组件从不创建速度发布器；
+- 自动定位要求扫描匹配候选通过误差与唯一性门限、`/scan` 和 `/amcl_pose` 新鲜且连续
+  低协方差、AMCL 与候选一致，并确认 `map -> odom` TF；端到端验证仍应在 RViz 中观察
+  LaserScan 与地图是否重合；
 - `CostmapCleaner` 同时等待两张代价地图的清理响应。任一失败会阻止 PatrolController
   发送第一个 Action 目标，服务回调、等待 Timer 和停止路径均可重复处理；
 - Action 回调使用 waypoint index 和 generation 校验，旧目标不能影响新目标；
 - 正常完成返回退出码 `0`，导航失败返回退出码 `1`；
 - Ctrl-C 等外部停止由 ROS2 负责结束 spin，不伪装成导航成功。
-
-

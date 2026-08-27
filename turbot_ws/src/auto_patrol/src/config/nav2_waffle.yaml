@@ -35,8 +35,7 @@ amcl:
     sigma_hit: 0.2
     tf_broadcast: true
     transform_tolerance: 1.0
-    # 自动定位以 0.40 rad/s 旋转时，每约 0.1 rad 更新一次 AMCL，
-    # 让粒子滤波器更快吸收不同朝向的 LaserScan；该值已在当前成功基线中使用。
+    # 无运动定位由 /request_nomotion_update 显式触发，保持官方正阈值即可避免无效重复更新。
     update_min_a: 0.1
     update_min_d: 0.25
     z_hit: 0.5
